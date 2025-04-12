@@ -1,14 +1,23 @@
 import os
+from config import Config
 from inky.auto import auto
 from utils.image_utils import resize_image, change_orientation
 from plugins.plugin_registry import get_plugin_instance
 
 
 class DisplayManager:
-    def __init__(self, device_config):
+    def __init__(self, device_config : Config):
         """Manages the display and rendering of images."""
         self.device_config = device_config
-        self.inky_display = auto()
+        self.devmode = device_config.load_env_key("PLUGIN_DEV_MODE")
+        if self.devmode:
+            from inky.mock import InkyMockImpression
+            (width, height) = device_config.get_resolution()
+            self.inky_display = InkyMockImpression((width, height))
+            #self.inky_display = auto(ask_user=True, verbose=True)
+        else:
+            self.inky_display = auto()
+        
         self.inky_display.set_border(self.inky_display.BLACK)
 
         # store display resolution in device config

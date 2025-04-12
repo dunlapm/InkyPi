@@ -60,7 +60,8 @@ if __name__ == '__main__':
     from werkzeug.serving import is_running_from_reloader
 
     # start the background refresh task
-    if not is_running_from_reloader():
+    if not is_running_from_reloader() or device_config.load_env_key("PLUGIN_DEV_MODE") == "True":
+        logger.info("Starting refresh task")
         refresh_task.start()
 
     # display default inkypi image on startup

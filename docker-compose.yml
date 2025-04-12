@@ -1,0 +1,22 @@
+services:
+  inkypi:
+    build:
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    volumes:
+      - ./config:/app/src/config
+    environment:
+      - FLASK_DEBUG=True
+      - PLUGIN_DEV_MODE=True
+      - DISPLAY=host.docker.internal:0  # For X11 forwarding on Windows
+    restart: unless-stopped
+    develop:
+      watch:
+        - action: sync
+          path: ./src
+          target: /app/src
+          ignore:
+            - __pycache__
+        - action: rebuild
+          path: install/requirements.txt
