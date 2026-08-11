@@ -7,6 +7,7 @@ import pytz
 from datetime import datetime, timezone
 from plugins.plugin_registry import get_plugin_instance
 from utils.image_utils import compute_image_hash
+from utils.system_status import generate_system_status_image
 from model import RefreshInfo, PlaylistManager
 from PIL import Image
 
@@ -24,6 +25,7 @@ class RefreshTask:
         self.condition = threading.Condition(self.lock)
         self.running = False
         self.manual_update_request = ()
+        self.manual_update_lock = threading.Lock()
 
         self.refresh_event = threading.Event()
         self.refresh_event.set()
@@ -109,20 +111,36 @@ class RefreshTask:
                             refresh_action = PlaylistRefresh(playlist, plugin_instance)
 
                     if refresh_action:
-                        plugin_config = self.device_config.get_plugin(refresh_action.get_plugin_id())
-                        if plugin_config is None:
-                            logger.error(f"Plugin config not found for '{refresh_action.get_plugin_id()}'.")
-                            continue
-                        plugin = get_plugin_instance(plugin_config)
+                        plugin = None
+                        if refresh_action.requires_plugin():
+                            plugin_config = self.device_config.get_plugin(refresh_action.get_plugin_id())
+                            if plugin_config is None:
+                                logger.error(f"Plugin config not found for '{refresh_action.get_plugin_id()}'.")
+                                continue
+                            plugin = get_plugin_instance(plugin_config)
                         image = refresh_action.execute(plugin, self.device_config, current_dt)
                         image_hash = compute_image_hash(image)
 
-                        refresh_info = refresh_action.get_refresh_info()
-                        refresh_info.update({"refresh_time": current_dt.isoformat(), "image_hash": image_hash})
+                        if refresh_action.updates_schedule():
+                            refresh_info = refresh_action.get_refresh_info()
+                            refresh_info.update({
+                                "refresh_time": current_dt.isoformat(),
+                                "image_hash": image_hash,
+                            })
+                        else:
+                            refresh_info = latest_refresh.to_dict()
+                            refresh_info["image_hash"] = image_hash
                         # check if image is the same as current image
                         if image_hash != latest_refresh.image_hash:
                             logger.info(f"Updating display. | refresh_info: {refresh_info}")
-                            self.display_manager.display_image(image, image_settings=plugin.config.get("image_settings", []))
+                            image_settings = (
+                                plugin.config.get("image_settings", [])
+                                if plugin
+                                else []
+                            )
+                            self.display_manager.display_image(
+                                image, image_settings=image_settings
+                            )
                         else:
                             logger.info(f"Image already displayed, skipping refresh. | refresh_info: {refresh_info}")
 
@@ -138,25 +156,50 @@ class RefreshTask:
 
     def manual_update(self, refresh_action):
         """Manually triggers an update for the specified plugin id and plugin settings by notifying the background process."""
-        if self.running:
-            with self.condition:
-                self.manual_update_request = refresh_action
-                self.refresh_result = {}
-                self.refresh_event.clear()
+        with self.manual_update_lock:
+            if self.running:
+                with self.condition:
+                    self.manual_update_request = refresh_action
+                    self.refresh_result = {}
+                    self.refresh_event.clear()
 
-                self.condition.notify_all()  # Wake the thread to process manual update
+                    self.condition.notify_all()  # Wake the thread to process manual update
 
-            self.refresh_event.wait()
-            if self.refresh_result.get("exception"):
-                raise self.refresh_result.get("exception")
-        else:
-            logger.warning("Background refresh task is not running, unable to do a manual update")
+                self.refresh_event.wait()
+                if self.refresh_result.get("exception"):
+                    raise self.refresh_result.get("exception")
+            else:
+                logger.warning("Background refresh task is not running, unable to do a manual update")
 
     def signal_config_change(self):
         """Notify the background thread that config has changed (e.g., interval updated)."""
         if self.running:
             with self.condition:
                 self.condition.notify_all()
+
+    def handle_button_action(self, action):
+        """Executes a physical button action through the refresh worker."""
+        current_dt = self._get_current_datetime()
+        playlist_manager = self.device_config.get_playlist_manager()
+        playlist = playlist_manager.determine_active_playlist(current_dt)
+
+        if action == "status":
+            self.manual_update(SystemStatusRefresh())
+            return
+        if not playlist or not playlist.plugins:
+            logger.warning("Button action ignored because no playlist is active.")
+            return
+
+        if action == "previous":
+            plugin_instance = playlist.get_previous_plugin()
+        elif action == "next":
+            plugin_instance = playlist.get_next_plugin()
+        elif action == "refresh":
+            plugin_instance = playlist.get_current_plugin()
+        else:
+            raise ValueError(f"Unsupported button action: {action}")
+
+        self.manual_update(PlaylistRefresh(playlist, plugin_instance, force=True))
 
     def _get_current_datetime(self):
         """Retrieves the current datetime based on the device's configured timezone."""
@@ -232,6 +275,12 @@ class RefreshAction:
         """Return the plugin ID associated with this refresh."""
         raise NotImplementedError("Subclasses must implement the get_plugin_id method.")
 
+    def requires_plugin(self):
+        return True
+
+    def updates_schedule(self):
+        return True
+
 class ManualRefresh(RefreshAction):
     """Performs a manual refresh based on a plugin's ID and its associated settings.
     
@@ -301,3 +350,21 @@ class PlaylistRefresh(RefreshAction):
                 image = img.copy()
 
         return image
+
+class SystemStatusRefresh(RefreshAction):
+    """Renders local system information without requiring a plugin instance."""
+
+    def execute(self, plugin, device_config, current_dt):
+        return generate_system_status_image(device_config, current_dt)
+
+    def get_refresh_info(self):
+        return {"refresh_type": "Manual Update", "plugin_id": "system_status"}
+
+    def get_plugin_id(self):
+        return "system_status"
+
+    def requires_plugin(self):
+        return False
+
+    def updates_schedule(self):
+        return False

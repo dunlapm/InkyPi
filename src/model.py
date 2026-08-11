@@ -224,11 +224,30 @@ class Playlist:
 
     def get_next_plugin(self):
         """Returns the next plugin instance in the playlist and update the current_plugin_index."""
+        return self.get_relative_plugin(1)
+
+    def get_previous_plugin(self):
+        """Returns the previous plugin instance in the playlist."""
+        return self.get_relative_plugin(-1)
+
+    def get_current_plugin(self):
+        """Returns the current plugin, selecting the first one if needed."""
+        if not self.plugins:
+            return None
         if self.current_plugin_index is None:
             self.current_plugin_index = 0
+        return self.plugins[self.current_plugin_index]
+
+    def get_relative_plugin(self, offset):
+        """Moves by offset in the playlist and returns the selected plugin."""
+        if not self.plugins:
+            return None
+        if self.current_plugin_index is None:
+            self.current_plugin_index = 0 if offset >= 0 else len(self.plugins) - 1
         else:
-            self.current_plugin_index = (self.current_plugin_index + 1) % len(self.plugins)
-        
+            self.current_plugin_index = (
+                self.current_plugin_index + offset
+            ) % len(self.plugins)
         return self.plugins[self.current_plugin_index]
 
     def get_priority(self):
