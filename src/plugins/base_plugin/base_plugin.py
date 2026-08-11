@@ -84,6 +84,10 @@ class BasePlugin:
         template_params['frame_styles'] = FRAME_STYLES
         return template_params
 
+    def get_settings_data(self, resource, params):
+        """Return dynamic data used by a plugin's settings form."""
+        raise ValueError(f"Unsupported settings resource: {resource}")
+
     def render_image(self, dimensions, html_file, css_file=None, template_params={}):
         # load the base plugin and current plugin css files
         css_files = [os.path.join(BASE_PLUGIN_RENDER_DIR, "plugin.css")]

@@ -1,0 +1,104 @@
+<div class="form-group">
+    <label for="schoolId" class="form-label">School:</label>
+    <select id="schoolId" name="schoolId" class="form-input" required disabled>
+        <option value="">Loading schools...</option>
+    </select>
+    <input type="hidden" id="schoolName" name="schoolName">
+</div>
+
+<div class="form-group">
+    <label for="menuId" class="form-label">Menu:</label>
+    <select id="menuId" name="menuId" class="form-input" required disabled>
+        <option value="">Select a school first</option>
+    </select>
+    <input type="hidden" id="menuName" name="menuName">
+</div>
+
+<div id="schoolMenuError" class="form-group" role="alert" style="display: none;"></div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        const schoolSelect = document.getElementById('schoolId');
+        const menuSelect = document.getElementById('menuId');
+        const schoolName = document.getElementById('schoolName');
+        const menuName = document.getElementById('menuName');
+        const errorMessage = document.getElementById('schoolMenuError');
+        const settingsDataUrl = "{{ url_for('plugin.plugin_settings_data', plugin_id='school_menu', resource='') }}";
+
+        function selectedText(select) {
+            return select.selectedIndex >= 0
+                ? select.options[select.selectedIndex].text
+                : '';
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+
+        async function loadOptions(resource, query = '') {
+            const response = await fetch(`${settingsDataUrl}${resource}${query}`);
+            const payload = await response.json();
+            if (!response.ok) {
+                throw new Error(payload.error || 'Unable to load options.');
+            }
+            return payload.data;
+        }
+
+        function populate(select, items, placeholder) {
+            select.replaceChildren(new Option(placeholder, ''));
+            items.forEach(item => select.add(new Option(item.name, item.id)));
+            select.disabled = false;
+        }
+
+        async function loadMenus(selectedMenuId = '') {
+            menuSelect.disabled = true;
+            menuSelect.replaceChildren(new Option('Loading menus...', ''));
+            menuName.value = '';
+
+            if (!schoolSelect.value) {
+                menuSelect.replaceChildren(new Option('Select a school first', ''));
+                return;
+            }
+
+            try {
+                const menus = await loadOptions(
+                    'menus',
+                    `?school_id=${encodeURIComponent(schoolSelect.value)}`
+                );
+                populate(menuSelect, menus, menus.length ? 'Select a menu' : 'No menus available');
+                menuSelect.disabled = menus.length === 0;
+                if (selectedMenuId) {
+                    menuSelect.value = String(selectedMenuId);
+                }
+                menuName.value = selectedText(menuSelect);
+            } catch (error) {
+                menuSelect.replaceChildren(new Option('Unable to load menus', ''));
+                showError(error.message);
+            }
+        }
+
+        schoolSelect.addEventListener('change', async () => {
+            schoolName.value = selectedText(schoolSelect);
+            await loadMenus();
+        });
+        menuSelect.addEventListener('change', () => {
+            menuName.value = selectedText(menuSelect);
+        });
+
+        try {
+            const schools = await loadOptions('schools');
+            populate(schoolSelect, schools, 'Select a school');
+
+            if (loadPluginSettings) {
+                schoolSelect.value = String(pluginSettings.schoolId || '');
+                schoolName.value = pluginSettings.schoolName || selectedText(schoolSelect);
+                await loadMenus(pluginSettings.menuId || '');
+                menuName.value = pluginSettings.menuName || selectedText(menuSelect);
+            }
+        } catch (error) {
+            schoolSelect.replaceChildren(new Option('Unable to load schools', ''));
+            showError(error.message);
+        }
+    });
+</script>

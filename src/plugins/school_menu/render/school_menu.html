@@ -1,0 +1,28 @@
+{% extends "plugin.html" %}
+
+{% block content %}
+<main class="school-menu">
+    <header class="menu-header">
+        <div class="school-name">{{ school_name }}</div>
+        <h1>{{ menu_name }}</h1>
+        <div class="menu-date">{{ date }}</div>
+    </header>
+
+    {% if message %}
+        <div class="empty-message">{{ message }}</div>
+    {% else %}
+        <div class="menu-sections">
+            {% for section in sections %}
+                <section class="menu-section">
+                    <h2>{{ section.name }}</h2>
+                    <ul>
+                        {% for item in section["items"] %}
+                            <li>{{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                </section>
+            {% endfor %}
+        </div>
+    {% endif %}
+</main>
+{% endblock %}

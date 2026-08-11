@@ -74,9 +74,12 @@ class RefreshTask:
             try:
                 with self.condition:
                     sleep_time = self.device_config.get_config("plugin_cycle_interval_seconds", default=60*60)
+                    current_dt = self._get_current_datetime()
+                    wait_time = self._seconds_until_next_interval(current_dt, sleep_time)
 
-                    # Wait for sleep_time or until notified
-                    self.condition.wait(timeout=sleep_time)
+                    # Align checks to wall-clock boundaries so rendering time does not
+                    # accumulate into the refresh schedule.
+                    self.condition.wait(timeout=wait_time)
                     self.refresh_result = {}
                     self.refresh_event.clear()
 
@@ -159,6 +162,18 @@ class RefreshTask:
         """Retrieves the current datetime based on the device's configured timezone."""
         tz_str = self.device_config.get_config("timezone", default="UTC")
         return datetime.now(pytz.timezone(tz_str))
+
+    @staticmethod
+    def _seconds_until_next_interval(current_dt, interval_seconds):
+        """Return the delay to the next local wall-clock interval boundary."""
+        interval_seconds = max(float(interval_seconds), 1)
+        seconds_since_midnight = (
+            current_dt.hour * 60 * 60
+            + current_dt.minute * 60
+            + current_dt.second
+            + current_dt.microsecond / 1_000_000
+        )
+        return interval_seconds - (seconds_since_midnight % interval_seconds)
 
     def _determine_next_plugin(self, playlist_manager, latest_refresh_info, current_dt):
         """Determines the next plugin to refresh based on the active playlist, plugin cycle interval, and current time."""

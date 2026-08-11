@@ -63,6 +63,23 @@ def plugin_page(plugin_id):
     else:
         return "Plugin not found", 404
 
+@plugin_bp.route('/plugin/<plugin_id>/settings-data/<resource>')
+def plugin_settings_data(plugin_id, resource):
+    device_config = current_app.config['DEVICE_CONFIG']
+    plugin_config = device_config.get_plugin(plugin_id)
+    if not plugin_config:
+        return jsonify({"error": "Plugin not found"}), 404
+
+    try:
+        plugin = get_plugin_instance(plugin_config)
+        data = plugin.get_settings_data(resource, request.args)
+        return jsonify({"data": data})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except RuntimeError as e:
+        logger.warning("Failed to load settings data for %s: %s", plugin_id, e)
+        return jsonify({"error": str(e)}), 502
+
 @plugin_bp.route('/images/<plugin_id>/<path:filename>')
 def image(plugin_id, filename):
     # Resolve plugins directory dynamically
