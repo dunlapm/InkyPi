@@ -4,7 +4,7 @@ from src.button_controller import ButtonController
 from src.model import Playlist
 
 
-def test_button_controller_coalesces_pending_actions():
+def test_button_controller_ignores_actions_while_busy():
     controller = ButtonController(Mock())
 
     assert controller.submit_action("next") is True

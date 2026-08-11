@@ -25,6 +25,8 @@ class ButtonController:
         self.action_thread = None
         self.line_request = None
         self.action_queue = queue.Queue(maxsize=1)
+        self.action_lock = threading.Lock()
+        self.action_pending = False
 
     def start(self):
         if self.running:
@@ -63,14 +65,15 @@ class ButtonController:
             self.line_request = None
 
     def submit_action(self, action):
-        try:
+        with self.action_lock:
+            if self.action_pending:
+                logger.info(
+                    "Ignoring button action '%s' while the display is busy.", action
+                )
+                return False
+            self.action_pending = True
             self.action_queue.put_nowait(action)
             return True
-        except queue.Full:
-            logger.info(
-                "Ignoring button action '%s' while another action is pending.", action
-            )
-            return False
 
     def _request_lines(self):
         import gpiod
@@ -120,4 +123,6 @@ class ButtonController:
             except Exception:
                 logger.exception("Physical button action failed: %s", action)
             finally:
+                with self.action_lock:
+                    self.action_pending = False
                 self.action_queue.task_done()
