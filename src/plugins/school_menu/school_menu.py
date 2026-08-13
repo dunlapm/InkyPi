@@ -12,7 +12,7 @@ from utils.http_client import get_http_session
 logger = logging.getLogger(__name__)
 
 API_BASE_URL = "https://menus.healthepro.com/api"
-ORGANIZATION_ID = 99
+LEGACY_ORGANIZATION_ID = 99
 REQUEST_TIMEOUT = 30
 
 
@@ -23,18 +23,27 @@ class SchoolMenu(BasePlugin):
         return template_params
 
     def get_settings_data(self, resource, params):
+        if resource == "organizations":
+            return self.get_organizations()
         if resource == "schools":
-            return self.get_schools()
+            organization_id = self._settings_id(
+                params.get("organization_id"), "School district"
+            )
+            return self.get_schools(organization_id)
         if resource == "menus":
-            try:
-                school_id = self._required_id(params.get("school_id"), "School")
-            except RuntimeError as e:
-                raise ValueError(str(e)) from e
-            return self.get_menus(school_id)
+            organization_id = self._settings_id(
+                params.get("organization_id"), "School district"
+            )
+            school_id = self._settings_id(params.get("school_id"), "School")
+            return self.get_menus(organization_id, school_id)
         raise ValueError(f"Unsupported settings resource: {resource}")
 
     def generate_image(self, settings, device_config):
-        school_id = self._required_id(settings.get("schoolId"), "School")
+        organization_id = self._required_id(
+            settings.get("organizationId", LEGACY_ORGANIZATION_ID),
+            "School district",
+        )
+        self._required_id(settings.get("schoolId"), "School")
         menu_id = self._required_id(settings.get("menuId"), "Menu")
         school_name = settings.get("schoolName", "").strip()
         menu_name = settings.get("menuName", "").strip()
@@ -50,7 +59,7 @@ class SchoolMenu(BasePlugin):
             raise RuntimeError(f"Invalid device timezone: {timezone_name}") from e
 
         today = datetime.now(timezone).date()
-        day_menu = self.get_day_menu(menu_id, today)
+        day_menu = self.get_day_menu(organization_id, menu_id, today)
 
         dimensions = device_config.get_resolution()
         if device_config.get_config("orientation") == "vertical":
@@ -71,9 +80,23 @@ class SchoolMenu(BasePlugin):
             raise RuntimeError("Failed to render the school menu.")
         return image
 
-    def get_schools(self):
+    def get_organizations(self):
+        state_groups = self._get_api_data("/organizations")
+        organizations = []
+        for state_group in state_groups:
+            state_name = state_group.get("name", "")
+            for organization in state_group.get("organizations", []):
+                if organization.get("id") and organization.get("name"):
+                    organizations.append({
+                        "id": organization["id"],
+                        "name": organization["name"],
+                        "state": organization.get("state") or state_name,
+                    })
+        return organizations
+
+    def get_schools(self, organization_id):
         data = self._get_api_data(
-            f"/organizations/{ORGANIZATION_ID}/sites/list"
+            f"/organizations/{organization_id}/sites/list"
         )
         return [
             {"id": school["id"], "name": school["name"]}
@@ -81,9 +104,9 @@ class SchoolMenu(BasePlugin):
             if school.get("id") and school.get("name")
         ]
 
-    def get_menus(self, school_id):
+    def get_menus(self, organization_id, school_id):
         data = self._get_api_data(
-            f"/organizations/{ORGANIZATION_ID}/sites/{school_id}/menus/"
+            f"/organizations/{organization_id}/sites/{school_id}/menus/"
         )
         return [
             {
@@ -94,9 +117,9 @@ class SchoolMenu(BasePlugin):
             if menu.get("id") and (menu.get("public_name") or menu.get("name"))
         ]
 
-    def get_day_menu(self, menu_id, day):
+    def get_day_menu(self, organization_id, menu_id, day):
         data = self._get_api_data(
-            f"/organizations/{ORGANIZATION_ID}/menus/{menu_id}"
+            f"/organizations/{organization_id}/menus/{menu_id}"
             f"/year/{day.year}/month/{day.month}/date_overwrites"
         )
         entry = next((item for item in data if item.get("day") == day.isoformat()), None)
@@ -144,6 +167,13 @@ class SchoolMenu(BasePlugin):
         if parsed <= 0:
             raise RuntimeError(f"{label} is required.")
         return parsed
+
+    @classmethod
+    def _settings_id(cls, value, label):
+        try:
+            return cls._required_id(value, label)
+        except RuntimeError as e:
+            raise ValueError(str(e)) from e
 
     @staticmethod
     def _parse_setting(value):
