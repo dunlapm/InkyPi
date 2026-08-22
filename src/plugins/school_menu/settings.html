@@ -1,9 +1,17 @@
 <div class="form-group">
-    <label for="organizationId" class="form-label">School District:</label>
-    <select id="organizationId" name="organizationId" class="form-input" required disabled>
-        <option value="">Loading school districts...</option>
-    </select>
-    <input type="hidden" id="organizationName" name="organizationName">
+    <label for="organizationName" class="form-label">School District:</label>
+    <input
+        type="text"
+        id="organizationName"
+        name="organizationName"
+        class="form-input"
+        list="organizationOptions"
+        placeholder="Type to search..."
+        required
+        disabled
+    >
+    <datalist id="organizationOptions"></datalist>
+    <input type="hidden" id="organizationId" name="organizationId">
 </div>
 
 <div class="form-group">
@@ -19,69 +27,103 @@
 </div>
 
 <div class="form-group">
-    <label for="schoolId" class="form-label">School 1:</label>
-    <select id="schoolId" name="schoolId" class="form-input" required disabled>
-        <option value="">Loading schools...</option>
-    </select>
-    <input type="hidden" id="schoolName" name="schoolName">
+    <label for="schoolName" class="form-label">School 1:</label>
+    <input
+        type="text"
+        id="schoolName"
+        name="schoolName"
+        class="form-input"
+        list="schoolOptions"
+        placeholder="Type to search..."
+        required
+        disabled
+    >
+    <datalist id="schoolOptions"></datalist>
+    <input type="hidden" id="schoolId" name="schoolId">
 </div>
 
 <div class="form-group">
-    <label for="menuId" class="form-label">Menu 1:</label>
-    <select id="menuId" name="menuId" class="form-input" required disabled>
-        <option value="">Select a school first</option>
-    </select>
-    <input type="hidden" id="menuName" name="menuName">
+    <label for="menuName" class="form-label">Menu 1:</label>
+    <input
+        type="text"
+        id="menuName"
+        name="menuName"
+        class="form-input"
+        list="menuOptions"
+        placeholder="Type to search..."
+        required
+        disabled
+    >
+    <datalist id="menuOptions"></datalist>
+    <input type="hidden" id="menuId" name="menuId">
 </div>
 
 <div class="form-group">
-    <label for="secondSchoolId" class="form-label">School 2 (optional):</label>
-    <select id="secondSchoolId" name="secondSchoolId" class="form-input" disabled>
-        <option value="">Select a school district first</option>
-    </select>
-    <input type="hidden" id="secondSchoolName" name="secondSchoolName">
+    <label for="secondSchoolName" class="form-label">School 2 (optional):</label>
+    <input
+        type="text"
+        id="secondSchoolName"
+        name="secondSchoolName"
+        class="form-input"
+        list="secondSchoolOptions"
+        placeholder="Type to search..."
+        disabled
+    >
+    <datalist id="secondSchoolOptions"></datalist>
+    <input type="hidden" id="secondSchoolId" name="secondSchoolId">
 </div>
 
 <div class="form-group">
-    <label for="secondMenuId" class="form-label">Menu 2:</label>
-    <select id="secondMenuId" name="secondMenuId" class="form-input" disabled>
-        <option value="">Select a second school first</option>
-    </select>
-    <input type="hidden" id="secondMenuName" name="secondMenuName">
+    <label for="secondMenuName" class="form-label">Menu 2:</label>
+    <input
+        type="text"
+        id="secondMenuName"
+        name="secondMenuName"
+        class="form-input"
+        list="secondMenuOptions"
+        placeholder="Type to search..."
+        disabled
+    >
+    <datalist id="secondMenuOptions"></datalist>
+    <input type="hidden" id="secondMenuId" name="secondMenuId">
 </div>
 
 <div id="schoolMenuError" class="form-group" role="alert" style="display: none;"></div>
 
 <script>
     document.addEventListener('DOMContentLoaded', async () => {
-        const organizationSelect = document.getElementById('organizationId');
-        const organizationName = document.getElementById('organizationName');
+        const organizationInput = document.getElementById('organizationName');
+        const organizationId = document.getElementById('organizationId');
+        const organizationOptions = document.getElementById('organizationOptions');
         const menuCutoffTime = document.getElementById('menuCutoffTime');
         const errorMessage = document.getElementById('schoolMenuError');
         const settingsDataUrl = "{{ url_for('plugin.plugin_settings_data', plugin_id='school_menu', resource='') }}";
         const selections = [
             {
-                school: document.getElementById('schoolId'),
-                schoolName: document.getElementById('schoolName'),
-                menu: document.getElementById('menuId'),
-                menuName: document.getElementById('menuName'),
-                schoolPlaceholder: 'Select a school',
-                menuPlaceholder: 'Select a menu'
+                schoolInput: document.getElementById('schoolName'),
+                schoolId: document.getElementById('schoolId'),
+                schoolOptions: document.getElementById('schoolOptions'),
+                menuInput: document.getElementById('menuName'),
+                menuId: document.getElementById('menuId'),
+                menuOptions: document.getElementById('menuOptions'),
+                schools: [],
+                menus: []
             },
             {
-                school: document.getElementById('secondSchoolId'),
-                schoolName: document.getElementById('secondSchoolName'),
-                menu: document.getElementById('secondMenuId'),
-                menuName: document.getElementById('secondMenuName'),
-                schoolPlaceholder: 'No second school',
-                menuPlaceholder: 'Select a second menu'
+                schoolInput: document.getElementById('secondSchoolName'),
+                schoolId: document.getElementById('secondSchoolId'),
+                schoolOptions: document.getElementById('secondSchoolOptions'),
+                menuInput: document.getElementById('secondMenuName'),
+                menuId: document.getElementById('secondMenuId'),
+                menuOptions: document.getElementById('secondMenuOptions'),
+                schools: [],
+                menus: []
             }
         ];
+        let organizations = [];
 
-        function selectedText(select) {
-            return select.selectedIndex >= 0
-                ? select.options[select.selectedIndex].text
-                : '';
+        function organizationLabel(organization) {
+            return `${organization.name} (${organization.state})`;
         }
 
         function showError(message) {
@@ -103,135 +145,173 @@
             return payload.data;
         }
 
-        function populate(select, items, placeholder, formatName = item => item.name) {
-            select.replaceChildren(new Option(placeholder, ''));
-            items.forEach(item => select.add(new Option(formatName(item), item.id)));
-            select.disabled = false;
-            $(select).trigger('change.select2');
+        function populateDatalist(datalist, items, label = item => item.name) {
+            datalist.replaceChildren(
+                ...items.map(item => new Option(label(item)))
+            );
         }
 
-        function resetSelection(selection, schoolMessage) {
-            selection.school.disabled = true;
-            selection.school.replaceChildren(new Option(schoolMessage, ''));
-            selection.schoolName.value = '';
-            selection.menu.disabled = true;
-            selection.menu.replaceChildren(new Option('Select a school first', ''));
-            selection.menuName.value = '';
-            $(selection.school).trigger('change.select2');
-            $(selection.menu).trigger('change.select2');
+        function findByInput(items, input, label = item => item.name) {
+            return items.find(item => label(item) === input.value) || null;
+        }
+
+        function setSelection(input, idInput, items, selectedId, label = item => item.name) {
+            const selected = items.find(item => String(item.id) === String(selectedId));
+            input.value = selected ? label(selected) : '';
+            idInput.value = selected ? selected.id : '';
+        }
+
+        function resetMenus(selection) {
+            selection.menus = [];
+            selection.menuInput.value = '';
+            selection.menuId.value = '';
+            selection.menuInput.disabled = true;
+            selection.menuOptions.replaceChildren();
+        }
+
+        function resetSchools() {
+            selections.forEach(selection => {
+                selection.schools = [];
+                selection.schoolInput.value = '';
+                selection.schoolId.value = '';
+                selection.schoolInput.disabled = true;
+                selection.schoolOptions.replaceChildren();
+                resetMenus(selection);
+            });
         }
 
         async function loadSchools(selectedSchoolIds = ['', '']) {
             clearError();
-            selections.forEach(selection => resetSelection(selection, 'Loading schools...'));
-
-            if (!organizationSelect.value) {
-                selections.forEach(selection => {
-                    resetSelection(selection, 'Select a school district first');
-                });
+            resetSchools();
+            if (!organizationId.value) {
                 return;
             }
 
             try {
                 const schools = await loadOptions(
                     'schools',
-                    `?organization_id=${encodeURIComponent(organizationSelect.value)}`
+                    `?organization_id=${encodeURIComponent(organizationId.value)}`
                 );
                 selections.forEach((selection, index) => {
-                    const placeholder = schools.length
-                        ? selection.schoolPlaceholder
-                        : 'No schools available';
-                    populate(selection.school, schools, placeholder);
-                    selection.school.disabled = schools.length === 0;
-                    if (selectedSchoolIds[index]) {
-                        selection.school.value = String(selectedSchoolIds[index]);
-                        $(selection.school).trigger('change.select2');
-                    }
-                    selection.schoolName.value = selectedText(selection.school);
+                    selection.schools = schools;
+                    populateDatalist(selection.schoolOptions, schools);
+                    selection.schoolInput.disabled = schools.length === 0;
+                    setSelection(
+                        selection.schoolInput,
+                        selection.schoolId,
+                        schools,
+                        selectedSchoolIds[index]
+                    );
                 });
             } catch (error) {
-                selections.forEach(selection => {
-                    resetSelection(selection, 'Unable to load schools');
-                });
                 showError(error.message);
             }
         }
 
         async function loadMenus(selection, selectedMenuId = '') {
             clearError();
-            selection.menu.disabled = true;
-            selection.menu.replaceChildren(new Option('Loading menus...', ''));
-            selection.menuName.value = '';
-            $(selection.menu).trigger('change.select2');
-
-            if (!selection.school.value) {
-                selection.menu.replaceChildren(new Option('Select a school first', ''));
-                $(selection.menu).trigger('change.select2');
+            resetMenus(selection);
+            if (!organizationId.value || !selection.schoolId.value) {
                 return;
             }
 
             try {
                 const menus = await loadOptions(
                     'menus',
-                    `?organization_id=${encodeURIComponent(organizationSelect.value)}&school_id=${encodeURIComponent(selection.school.value)}`
+                    `?organization_id=${encodeURIComponent(organizationId.value)}&school_id=${encodeURIComponent(selection.schoolId.value)}`
                 );
-                populate(selection.menu, menus, menus.length ? selection.menuPlaceholder : 'No menus available');
-                selection.menu.disabled = menus.length === 0;
-                if (selectedMenuId) {
-                    selection.menu.value = String(selectedMenuId);
-                    $(selection.menu).trigger('change.select2');
-                }
-                selection.menuName.value = selectedText(selection.menu);
+                selection.menus = menus;
+                populateDatalist(selection.menuOptions, menus);
+                selection.menuInput.disabled = menus.length === 0;
+                setSelection(
+                    selection.menuInput,
+                    selection.menuId,
+                    menus,
+                    selectedMenuId
+                );
             } catch (error) {
-                selection.menu.replaceChildren(new Option('Unable to load menus', ''));
-                $(selection.menu).trigger('change.select2');
                 showError(error.message);
             }
         }
 
-        $(organizationSelect).on('change', async () => {
-            organizationName.value = selectedText(organizationSelect);
-            await loadSchools();
+        organizationInput.addEventListener('input', () => {
+            const selected = findByInput(
+                organizations,
+                organizationInput,
+                organizationLabel
+            );
+            organizationId.value = selected ? selected.id : '';
         });
+        organizationInput.addEventListener('change', async () => {
+            const selected = findByInput(
+                organizations,
+                organizationInput,
+                organizationLabel
+            );
+            organizationId.value = selected ? selected.id : '';
+            await loadSchools();
+            if (!selected && organizationInput.value) {
+                showError('Select a school district from the list.');
+            }
+        });
+
         selections.forEach(selection => {
-            $(selection.school).on('change', async () => {
-                selection.schoolName.value = selectedText(selection.school);
-                await loadMenus(selection);
+            selection.schoolInput.addEventListener('input', () => {
+                const selected = findByInput(
+                    selection.schools,
+                    selection.schoolInput
+                );
+                selection.schoolId.value = selected ? selected.id : '';
             });
-            $(selection.menu).on('change', () => {
-                selection.menuName.value = selectedText(selection.menu);
+            selection.schoolInput.addEventListener('change', async () => {
+                const selected = findByInput(
+                    selection.schools,
+                    selection.schoolInput
+                );
+                selection.schoolId.value = selected ? selected.id : '';
+                await loadMenus(selection);
+                if (!selected && selection.schoolInput.value) {
+                    showError('Select a school from the list.');
+                }
+            });
+            selection.menuInput.addEventListener('input', () => {
+                const selected = findByInput(
+                    selection.menus,
+                    selection.menuInput
+                );
+                selection.menuId.value = selected ? selected.id : '';
+            });
+            selection.menuInput.addEventListener('change', () => {
+                const selected = findByInput(
+                    selection.menus,
+                    selection.menuInput
+                );
+                selection.menuId.value = selected ? selected.id : '';
+                if (!selected && selection.menuInput.value) {
+                    showError('Select a menu from the list.');
+                }
             });
         });
 
         try {
-            const organizations = await loadOptions('organizations');
-            populate(
-                organizationSelect,
+            organizations = await loadOptions('organizations');
+            populateDatalist(
+                organizationOptions,
                 organizations,
-                'Select a school district',
-                organization => `${organization.name} (${organization.state})`
+                organizationLabel
             );
-            $(organizationSelect).select2({
-                placeholder: 'Search for a school district',
-                width: '100%'
-            });
-            selections.forEach(selection => {
-                $(selection.school).select2({
-                    placeholder: selection.schoolPlaceholder,
-                    width: '100%'
-                });
-                $(selection.menu).select2({
-                    placeholder: selection.menuPlaceholder,
-                    width: '100%'
-                });
-            });
+            organizationInput.disabled = organizations.length === 0;
 
             if (loadPluginSettings) {
                 menuCutoffTime.value = pluginSettings.menuCutoffTime || '12:00';
-                // Instances created before district selection was added were Bellevue (ID 99).
-                organizationSelect.value = String(pluginSettings.organizationId || '99');
-                $(organizationSelect).trigger('change.select2');
-                organizationName.value = pluginSettings.organizationName || selectedText(organizationSelect);
+                const selectedOrganizationId = pluginSettings.organizationId || '99';
+                setSelection(
+                    organizationInput,
+                    organizationId,
+                    organizations,
+                    selectedOrganizationId,
+                    organizationLabel
+                );
                 await loadSchools([
                     pluginSettings.schoolId || '',
                     pluginSettings.secondSchoolId || ''
@@ -240,13 +320,9 @@
                     loadMenus(selections[0], pluginSettings.menuId || ''),
                     loadMenus(selections[1], pluginSettings.secondMenuId || '')
                 ]);
-                selections[0].schoolName.value = pluginSettings.schoolName || selectedText(selections[0].school);
-                selections[0].menuName.value = pluginSettings.menuName || selectedText(selections[0].menu);
-                selections[1].schoolName.value = pluginSettings.secondSchoolName || selectedText(selections[1].school);
-                selections[1].menuName.value = pluginSettings.secondMenuName || selectedText(selections[1].menu);
             }
         } catch (error) {
-            organizationSelect.replaceChildren(new Option('Unable to load school districts', ''));
+            organizationInput.disabled = true;
             showError(error.message);
         }
     });

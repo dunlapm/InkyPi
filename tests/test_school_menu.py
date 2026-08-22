@@ -1,5 +1,6 @@
 import json
 from datetime import date, datetime
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -168,6 +169,17 @@ def test_menu_cutoff_switches_at_configured_local_time(
 def test_menu_cutoff_rejects_invalid_time(plugin):
     with pytest.raises(RuntimeError, match="valid time"):
         plugin._is_before_cutoff(datetime(2026, 9, 2, 8, 0), "lunchtime")
+
+
+def test_settings_use_native_searchable_datalists():
+    settings_html = Path(
+        "src/plugins/school_menu/settings.html"
+    ).read_text(encoding="utf-8")
+
+    assert settings_html.count("<datalist") == 5
+    assert 'list="organizationOptions"' in settings_html
+    assert 'list="secondMenuOptions"' in settings_html
+    assert ".select2(" not in settings_html
 
 
 def test_build_sections_hides_low_priority_sections(plugin):
