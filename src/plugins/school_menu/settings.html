@@ -7,6 +7,18 @@
 </div>
 
 <div class="form-group">
+    <label for="menuCutoffTime" class="form-label">Show Next Menu After:</label>
+    <input
+        type="time"
+        id="menuCutoffTime"
+        name="menuCutoffTime"
+        class="form-input"
+        value="12:00"
+        required
+    >
+</div>
+
+<div class="form-group">
     <label for="schoolId" class="form-label">School 1:</label>
     <select id="schoolId" name="schoolId" class="form-input" required disabled>
         <option value="">Loading schools...</option>
@@ -44,6 +56,7 @@
     document.addEventListener('DOMContentLoaded', async () => {
         const organizationSelect = document.getElementById('organizationId');
         const organizationName = document.getElementById('organizationName');
+        const menuCutoffTime = document.getElementById('menuCutoffTime');
         const errorMessage = document.getElementById('schoolMenuError');
         const settingsDataUrl = "{{ url_for('plugin.plugin_settings_data', plugin_id='school_menu', resource='') }}";
         const selections = [
@@ -214,6 +227,7 @@
             });
 
             if (loadPluginSettings) {
+                menuCutoffTime.value = pluginSettings.menuCutoffTime || '12:00';
                 // Instances created before district selection was added were Bellevue (ID 99).
                 organizationSelect.value = String(pluginSettings.organizationId || '99');
                 $(organizationSelect).trigger('change.select2');

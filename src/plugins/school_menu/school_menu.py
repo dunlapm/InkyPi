@@ -17,6 +17,7 @@ REQUEST_TIMEOUT = 30
 NEXT_MENU_LOOKAHEAD_MONTHS = 2
 HIDDEN_SECTION_NAMES = {"milk", "misc", "misc."}
 DISPLAY_SECTION_TERMS = ("featured", "entree", "entrée")
+DEFAULT_MENU_CUTOFF_TIME = "12:00"
 
 
 class SchoolMenu(BasePlugin):
@@ -55,7 +56,12 @@ class SchoolMenu(BasePlugin):
         except pytz.UnknownTimeZoneError as e:
             raise RuntimeError(f"Invalid device timezone: {timezone_name}") from e
 
-        today = datetime.now(timezone).date()
+        local_now = datetime.now(timezone)
+        today = local_now.date()
+        include_today = self._is_before_cutoff(
+            local_now,
+            settings.get("menuCutoffTime", DEFAULT_MENU_CUTOFF_TIME),
+        )
         menu_configs = [
             {
                 "school_id": settings.get("schoolId"),
@@ -103,6 +109,7 @@ class SchoolMenu(BasePlugin):
                 organization_id,
                 menu_id,
                 today,
+                include_day=include_today,
             )
             menus.append(
                 {
@@ -183,7 +190,13 @@ class SchoolMenu(BasePlugin):
             return {"sections": [], "message": "No menu is published for today."}
         return self._menu_from_entry(entry)
 
-    def get_menu_for_display(self, organization_id, menu_id, day):
+    def get_menu_for_display(
+        self,
+        organization_id,
+        menu_id,
+        day,
+        include_day=True,
+    ):
         fallback = None
 
         for month_start in self._month_starts(day, NEXT_MENU_LOOKAHEAD_MONTHS + 1):
@@ -193,7 +206,11 @@ class SchoolMenu(BasePlugin):
                 empty_on_statuses=(400, 404),
             )
 
-            if month_start.year == day.year and month_start.month == day.month:
+            if (
+                include_day
+                and month_start.year == day.year
+                and month_start.month == day.month
+            ):
                 entry = next(
                     (item for item in entries if item.get("day") == day.isoformat()),
                     None,
@@ -235,6 +252,14 @@ class SchoolMenu(BasePlugin):
             "message": "No upcoming menu is published.",
         }
         return {**fallback, "day": day, "is_upcoming": False}
+
+    @staticmethod
+    def _is_before_cutoff(local_now, cutoff_value):
+        try:
+            cutoff = datetime.strptime(cutoff_value, "%H:%M").time()
+        except (TypeError, ValueError) as e:
+            raise RuntimeError("Menu cutoff time must be a valid time.") from e
+        return local_now.time().replace(tzinfo=None) < cutoff
 
     def _menu_from_entry(self, entry):
         current_setting = self._parse_setting(entry.get("setting"))

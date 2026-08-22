@@ -1,5 +1,5 @@
 import json
-from datetime import date
+from datetime import date, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -116,6 +116,60 @@ def test_get_menu_for_display_uses_next_published_meal(plugin):
     }
 
 
+def test_get_menu_for_display_skips_today_after_cutoff(plugin):
+    today = date(2026, 9, 2)
+    tomorrow = date(2026, 9, 3)
+    entries = [
+        make_entry(
+            today,
+            [
+                {"type": "category", "name": "Featured Entree(s)"},
+                {"type": "recipe", "name": "Today's Pizza"},
+            ],
+        ),
+        make_entry(
+            tomorrow,
+            [
+                {"type": "category", "name": "Featured Entree(s)"},
+                {"type": "recipe", "name": "Tomorrow's Pasta"},
+            ],
+        ),
+    ]
+
+    with patch.object(plugin, "_get_api_data", return_value=entries):
+        result = plugin.get_menu_for_display(
+            99,
+            123,
+            today,
+            include_day=False,
+        )
+
+    assert result["day"] == tomorrow
+    assert result["is_upcoming"] is True
+    assert result["sections"][0]["items"] == ["Tomorrow's Pasta"]
+
+
+@pytest.mark.parametrize(
+    ("current_time", "expected"),
+    [
+        (datetime(2026, 9, 2, 11, 59), True),
+        (datetime(2026, 9, 2, 12, 0), False),
+        (datetime(2026, 9, 2, 15, 30), False),
+    ],
+)
+def test_menu_cutoff_switches_at_configured_local_time(
+    plugin,
+    current_time,
+    expected,
+):
+    assert plugin._is_before_cutoff(current_time, "12:00") is expected
+
+
+def test_menu_cutoff_rejects_invalid_time(plugin):
+    with pytest.raises(RuntimeError, match="valid time"):
+        plugin._is_before_cutoff(datetime(2026, 9, 2, 8, 0), "lunchtime")
+
+
 def test_build_sections_hides_low_priority_sections(plugin):
     sections = plugin._build_sections(
         [
@@ -199,6 +253,10 @@ def test_generate_image_supports_two_schools(plugin):
         (99, 130572),
     ]
     assert get_menu.call_args_list[0].args[2] == get_menu.call_args_list[1].args[2]
+    assert all(
+        isinstance(call_args.kwargs["include_day"], bool)
+        for call_args in get_menu.call_args_list
+    )
     template_params = render_image.call_args.args[3]
     assert [menu["school_name"] for menu in template_params["menus"]] == [
         "Tillicum Middle School",
