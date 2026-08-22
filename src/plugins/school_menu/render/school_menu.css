@@ -2,79 +2,86 @@
     box-sizing: border-box;
 }
 
-.school-menu {
-    display: flex;
-    flex-direction: column;
+.school-menus {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
     height: 100%;
-    gap: 2dvh;
     font-family: "Jost";
     overflow: hidden;
 }
 
+.school-menus.single {
+    grid-template-columns: 1fr;
+}
+
+.school-menu {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    height: 100%;
+    padding: 0 1.5dvw;
+    overflow: hidden;
+}
+
+.school-menus.dual .school-menu + .school-menu {
+    border-left: 0.35dvh solid currentColor;
+}
+
 .menu-header {
     flex: 0 0 auto;
-    display: flex;
-    align-items: end;
-    justify-content: space-between;
-    gap: 3dvw;
+    position: relative;
     border-bottom: 0.4dvh solid currentColor;
-    padding-bottom: 1.5dvh;
-}
-
-.menu-title {
-    min-width: 0;
-}
-
-.school-name {
-    font-size: min(4dvh, 4dvw);
-    font-weight: 600;
+    padding-bottom: 1dvh;
+    text-align: center;
 }
 
 .menu-header h1 {
     margin: 0;
-    font-size: min(6dvh, 6dvw);
+    font-size: min(5.8dvh, 5.8dvw);
+    line-height: 1;
+}
+
+.menu-name {
+    margin-top: 0.4dvh;
+    font-size: min(2.8dvh, 2.8dvw);
+    font-weight: 600;
     line-height: 1;
 }
 
 .menu-date {
-    flex: 0 0 auto;
-    text-align: right;
-    font-size: min(3.8dvh, 3.8dvw);
+    margin-top: 0.8dvh;
+    font-size: min(3.2dvh, 3.2dvw);
     font-weight: 600;
     line-height: 1.05;
 }
 
-.menu-date span,
-.menu-date time {
-    display: block;
-}
-
 .menu-date span {
-    font-size: 0.72em;
+    margin-right: 0.5em;
+    font-size: 0.7em;
     text-transform: uppercase;
 }
 
 .menu-sections {
-    column-count: 3;
-    column-gap: 2dvw;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 1.2dvh;
     min-height: 0;
+    padding-top: 1.2dvh;
     overflow: hidden;
 }
 
 .menu-section {
-    display: inline-block;
     width: 100%;
     min-width: 0;
-    margin-bottom: 1.2dvh;
     padding: 0.8dvh 1dvw 1dvh;
     border: 0.25dvh solid currentColor;
-    break-inside: avoid;
 }
 
 .menu-section h2 {
     margin: 0 0 0.5dvh;
-    font-size: min(3.8dvh, 3.8dvw);
+    font-size: min(4.2dvh, 4.2dvw);
     line-height: 1.05;
     border-bottom: 1px solid currentColor;
 }
@@ -85,9 +92,9 @@
 }
 
 .menu-section li {
-    margin-bottom: 0.25dvh;
-    font-size: min(2.8dvh, 2.8dvw);
-    line-height: 1.05;
+    margin-bottom: 0.35dvh;
+    font-size: min(3.4dvh, 3.4dvw);
+    line-height: 1.08;
 }
 
 .empty-message {
@@ -96,22 +103,29 @@
     align-items: center;
     justify-content: center;
     text-align: center;
-    font-size: min(8dvh, 8dvw);
+    font-size: min(6dvh, 6dvw);
     font-weight: 600;
 }
 
+.school-menus.single .menu-sections {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+}
+
 @media (max-aspect-ratio: 1) {
+    .school-menus {
+        grid-template-columns: 1fr;
+        grid-template-rows: repeat(2, minmax(0, 1fr));
+    }
+
+    .school-menus.dual .school-menu + .school-menu {
+        border-top: 0.35dvh solid currentColor;
+        border-left: 0;
+    }
+
     .menu-sections {
-        column-count: 1;
-    }
-
-    .menu-header {
-        display: block;
-        text-align: center;
-    }
-
-    .menu-date {
-        margin-top: 1dvh;
-        text-align: center;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }

@@ -136,6 +136,78 @@ def test_build_sections_hides_low_priority_sections(plugin):
     ]
 
 
+def test_display_sections_prioritizes_changing_meal_sections(plugin):
+    sections = [
+        {"name": "Featured Entree(s)", "items": ["Pasta"]},
+        {"name": "Grill Line", "items": ["Burger"]},
+        {"name": "Pizza by the Slice", "items": ["Cheese Pizza"]},
+        {"name": "Vegetables", "items": ["Carrots"]},
+        {"name": "Fruit", "items": ["Apple"]},
+    ]
+
+    assert plugin._display_sections(sections) == [
+        {"name": "Featured Entree(s)", "items": ["Pasta"]},
+        {"name": "Vegetables", "items": ["Carrots"]},
+        {"name": "Fruit", "items": ["Apple"]},
+    ]
+
+
+def test_generate_image_supports_two_schools(plugin):
+    first_menu = {
+        "sections": [{"name": "Featured Entree(s)", "items": ["Pasta"]}],
+        "message": "",
+        "day": date(2026, 9, 2),
+        "is_upcoming": True,
+    }
+    second_menu = {
+        "sections": [{"name": "Fruit", "items": ["Apple"]}],
+        "message": "",
+        "day": date(2026, 9, 3),
+        "is_upcoming": True,
+    }
+    device_config = MagicMock()
+    device_config.get_config.side_effect = lambda key, default=None: {
+        "timezone": "America/Los_Angeles",
+        "orientation": "horizontal",
+    }.get(key, default)
+    device_config.get_resolution.return_value = (800, 480)
+
+    with (
+        patch.object(
+            plugin,
+            "get_menu_for_display",
+            side_effect=[first_menu, second_menu],
+        ) as get_menu,
+        patch.object(plugin, "render_image", return_value="image") as render_image,
+    ):
+        result = plugin.generate_image(
+            {
+                "organizationId": "99",
+                "schoolId": "764",
+                "schoolName": "Tillicum Middle School",
+                "menuId": "131294",
+                "menuName": "Middle School Lunch",
+                "secondSchoolId": "744",
+                "secondSchoolName": "Ardmore Elementary",
+                "secondMenuId": "130572",
+                "secondMenuName": "Elementary Lunch",
+            },
+            device_config,
+        )
+
+    assert result == "image"
+    assert [call_args.args[:2] for call_args in get_menu.call_args_list] == [
+        (99, 131294),
+        (99, 130572),
+    ]
+    assert get_menu.call_args_list[0].args[2] == get_menu.call_args_list[1].args[2]
+    template_params = render_image.call_args.args[3]
+    assert [menu["school_name"] for menu in template_params["menus"]] == [
+        "Tillicum Middle School",
+        "Ardmore Elementary",
+    ]
+
+
 def test_get_menus_prefers_public_name(plugin):
     with patch.object(
         plugin,

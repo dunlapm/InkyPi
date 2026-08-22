@@ -1,33 +1,35 @@
 {% extends "plugin.html" %}
 
 {% block content %}
-<main class="school-menu">
-    <header class="menu-header">
-        <div class="menu-title">
-            <div class="school-name">{{ school_name }}</div>
-            <h1>{{ menu_name }}</h1>
-        </div>
-        <div class="menu-date">
-            {% if is_upcoming %}<span>Next menu</span>{% endif %}
-            <time>{{ date }}</time>
-        </div>
-    </header>
+<main class="school-menus {% if menus|length > 1 %}dual{% else %}single{% endif %}">
+    {% for menu in menus %}
+        <article class="school-menu">
+            <header class="menu-header">
+                <h1>{{ menu.school_name }}</h1>
+                <div class="menu-name">{{ menu.menu_name }}</div>
+                <div class="menu-date">
+                    {% if menu.is_upcoming %}<span>Next menu</span>{% endif %}
+                    <time>{{ menu.date }}</time>
+                </div>
+            </header>
 
-    {% if message %}
-        <div class="empty-message">{{ message }}</div>
-    {% else %}
-        <div class="menu-sections">
-            {% for section in sections %}
-                <section class="menu-section">
-                    <h2>{{ section.name }}</h2>
-                    <ul>
-                        {% for item in section["items"] %}
-                            <li>{{ item }}</li>
-                        {% endfor %}
-                    </ul>
-                </section>
-            {% endfor %}
-        </div>
-    {% endif %}
+            {% if menu.message %}
+                <div class="empty-message">{{ menu.message }}</div>
+            {% else %}
+                <div class="menu-sections">
+                    {% for section in menu.sections %}
+                        <section class="menu-section">
+                            <h2>{{ section.name }}</h2>
+                            <ul>
+                                {% for item in section["items"] %}
+                                    <li>{{ item }}</li>
+                                {% endfor %}
+                            </ul>
+                        </section>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </article>
+    {% endfor %}
 </main>
 {% endblock %}

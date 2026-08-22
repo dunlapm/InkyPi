@@ -16,6 +16,7 @@ LEGACY_ORGANIZATION_ID = 99
 REQUEST_TIMEOUT = 30
 NEXT_MENU_LOOKAHEAD_MONTHS = 2
 HIDDEN_SECTION_NAMES = {"milk", "misc", "misc."}
+DISPLAY_SECTION_TERMS = ("featured", "entree", "entrée", "vegetable", "fruit")
 
 
 class SchoolMenu(BasePlugin):
@@ -45,12 +46,6 @@ class SchoolMenu(BasePlugin):
             settings.get("organizationId", LEGACY_ORGANIZATION_ID),
             "School district",
         )
-        self._required_id(settings.get("schoolId"), "School")
-        menu_id = self._required_id(settings.get("menuId"), "Menu")
-        school_name = settings.get("schoolName", "").strip()
-        menu_name = settings.get("menuName", "").strip()
-        if not school_name or not menu_name:
-            raise RuntimeError("School and menu names are required.")
 
         timezone_name = device_config.get_config(
             "timezone", default="America/New_York"
@@ -61,21 +56,73 @@ class SchoolMenu(BasePlugin):
             raise RuntimeError(f"Invalid device timezone: {timezone_name}") from e
 
         today = datetime.now(timezone).date()
-        day_menu = self.get_menu_for_display(organization_id, menu_id, today)
+        menu_configs = [
+            {
+                "school_id": settings.get("schoolId"),
+                "school_name": settings.get("schoolName", "").strip(),
+                "menu_id": settings.get("menuId"),
+                "menu_name": settings.get("menuName", "").strip(),
+                "school_label": "School",
+                "menu_label": "Menu",
+            }
+        ]
+        second_values = (
+            settings.get("secondSchoolId"),
+            settings.get("secondMenuId"),
+        )
+        if any(second_values):
+            if not all(second_values):
+                raise RuntimeError(
+                    "Both the second school and second menu are required."
+                )
+            menu_configs.append(
+                {
+                    "school_id": settings.get("secondSchoolId"),
+                    "school_name": settings.get("secondSchoolName", "").strip(),
+                    "menu_id": settings.get("secondMenuId"),
+                    "menu_name": settings.get("secondMenuName", "").strip(),
+                    "school_label": "Second school",
+                    "menu_label": "Second menu",
+                }
+            )
+
+        menus = []
+        for menu_config in menu_configs:
+            self._required_id(
+                menu_config["school_id"],
+                menu_config["school_label"],
+            )
+            menu_id = self._required_id(
+                menu_config["menu_id"],
+                menu_config["menu_label"],
+            )
+            if not menu_config["school_name"] or not menu_config["menu_name"]:
+                raise RuntimeError("School and menu names are required.")
+
+            day_menu = self.get_menu_for_display(
+                organization_id,
+                menu_id,
+                today,
+            )
+            menus.append(
+                {
+                    "school_name": menu_config["school_name"],
+                    "menu_name": menu_config["menu_name"],
+                    "date": (
+                        f"{day_menu['day']:%A, %B} {day_menu['day'].day}"
+                    ),
+                    "is_upcoming": day_menu["is_upcoming"],
+                    "sections": self._display_sections(day_menu["sections"]),
+                    "message": day_menu["message"],
+                }
+            )
 
         dimensions = device_config.get_resolution()
         if device_config.get_config("orientation") == "vertical":
             dimensions = dimensions[::-1]
 
         template_params = {
-            "school_name": school_name,
-            "menu_name": menu_name,
-            "date": (
-                f"{day_menu['day']:%A, %B} {day_menu['day'].day}"
-            ),
-            "is_upcoming": day_menu["is_upcoming"],
-            "sections": day_menu["sections"],
-            "message": day_menu["message"],
+            "menus": menus,
             "plugin_settings": settings,
         }
         image = self.render_image(
@@ -309,3 +356,15 @@ class SchoolMenu(BasePlugin):
                 current_section["items"].append(name)
 
         return [section for section in sections if section["items"]]
+
+    @staticmethod
+    def _display_sections(sections):
+        prioritized = [
+            section
+            for section in sections
+            if any(
+                term in section["name"].casefold()
+                for term in DISPLAY_SECTION_TERMS
+            )
+        ]
+        return prioritized or sections[:3]
