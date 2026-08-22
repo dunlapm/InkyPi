@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime
+from datetime import date, datetime
 
 import pytz
 import requests
@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 API_BASE_URL = "https://menus.healthepro.com/api"
 LEGACY_ORGANIZATION_ID = 99
 REQUEST_TIMEOUT = 30
+NEXT_MENU_LOOKAHEAD_MONTHS = 2
+HIDDEN_SECTION_NAMES = {"milk", "misc", "misc."}
 
 
 class SchoolMenu(BasePlugin):
@@ -59,7 +61,7 @@ class SchoolMenu(BasePlugin):
             raise RuntimeError(f"Invalid device timezone: {timezone_name}") from e
 
         today = datetime.now(timezone).date()
-        day_menu = self.get_day_menu(organization_id, menu_id, today)
+        day_menu = self.get_menu_for_display(organization_id, menu_id, today)
 
         dimensions = device_config.get_resolution()
         if device_config.get_config("orientation") == "vertical":
@@ -68,7 +70,10 @@ class SchoolMenu(BasePlugin):
         template_params = {
             "school_name": school_name,
             "menu_name": menu_name,
-            "date": today.strftime("%A, %B %d"),
+            "date": (
+                f"{day_menu['day']:%A, %B} {day_menu['day'].day}"
+            ),
+            "is_upcoming": day_menu["is_upcoming"],
             "sections": day_menu["sections"],
             "message": day_menu["message"],
             "plugin_settings": settings,
@@ -118,15 +123,73 @@ class SchoolMenu(BasePlugin):
         ]
 
     def get_day_menu(self, organization_id, menu_id, day):
-        data = self._get_api_data(
+        entries = self._get_api_data(
             f"/organizations/{organization_id}/menus/{menu_id}"
             f"/year/{day.year}/month/{day.month}/date_overwrites",
             empty_on_statuses=(400, 404),
         )
-        entry = next((item for item in data if item.get("day") == day.isoformat()), None)
+        entry = next(
+            (item for item in entries if item.get("day") == day.isoformat()),
+            None,
+        )
         if not entry:
             return {"sections": [], "message": "No menu is published for today."}
+        return self._menu_from_entry(entry)
 
+    def get_menu_for_display(self, organization_id, menu_id, day):
+        fallback = None
+
+        for month_start in self._month_starts(day, NEXT_MENU_LOOKAHEAD_MONTHS + 1):
+            entries = self._get_api_data(
+                f"/organizations/{organization_id}/menus/{menu_id}"
+                f"/year/{month_start.year}/month/{month_start.month}/date_overwrites",
+                empty_on_statuses=(400, 404),
+            )
+
+            if month_start.year == day.year and month_start.month == day.month:
+                entry = next(
+                    (item for item in entries if item.get("day") == day.isoformat()),
+                    None,
+                )
+                fallback = (
+                    self._menu_from_entry(entry)
+                    if entry
+                    else {
+                        "sections": [],
+                        "message": "No menu is published for today.",
+                    }
+                )
+                if fallback["sections"]:
+                    return {
+                        **fallback,
+                        "day": day,
+                        "is_upcoming": False,
+                    }
+
+            future_entries = sorted(
+                (
+                    (entry_day, entry)
+                    for entry in entries
+                    if (entry_day := self._entry_day(entry)) and entry_day > day
+                ),
+                key=lambda item: item[0],
+            )
+            for entry_day, entry in future_entries:
+                menu = self._menu_from_entry(entry)
+                if menu["sections"]:
+                    return {
+                        **menu,
+                        "day": entry_day,
+                        "is_upcoming": True,
+                    }
+
+        fallback = fallback or {
+            "sections": [],
+            "message": "No upcoming menu is published.",
+        }
+        return {**fallback, "day": day, "is_upcoming": False}
+
+    def _menu_from_entry(self, entry):
         current_setting = self._parse_setting(entry.get("setting"))
         if current_setting.get("days_off"):
             return {
@@ -143,6 +206,21 @@ class SchoolMenu(BasePlugin):
         if not sections:
             return {"sections": [], "message": "No menu is published for today."}
         return {"sections": sections, "message": ""}
+
+    @staticmethod
+    def _entry_day(entry):
+        try:
+            return date.fromisoformat(entry.get("day", ""))
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _month_starts(day, count):
+        month_index = day.year * 12 + day.month - 1
+        return [
+            date((month_index + offset) // 12, (month_index + offset) % 12 + 1, 1)
+            for offset in range(count)
+        ]
 
     def _get_api_data(self, path, empty_on_statuses=()):
         try:
@@ -208,6 +286,7 @@ class SchoolMenu(BasePlugin):
     def _build_sections(display_items):
         sections = []
         current_section = None
+        skip_recipes = False
 
         for item in display_items:
             name = str(item.get("name", "")).strip()
@@ -215,9 +294,15 @@ class SchoolMenu(BasePlugin):
             if not name:
                 continue
             if item_type == "category":
+                skip_recipes = name.casefold() in HIDDEN_SECTION_NAMES
+                if skip_recipes:
+                    current_section = None
+                    continue
                 current_section = {"name": name, "items": []}
                 sections.append(current_section)
             elif item_type == "recipe":
+                if skip_recipes:
+                    continue
                 if current_section is None:
                     current_section = {"name": "Menu", "items": []}
                     sections.append(current_section)

@@ -59,6 +59,7 @@
             select.replaceChildren(new Option(placeholder, ''));
             items.forEach(item => select.add(new Option(formatName(item), item.id)));
             select.disabled = false;
+            $(select).trigger('change.select2');
         }
 
         async function loadSchools(selectedSchoolId = '') {
@@ -142,14 +143,25 @@
                 placeholder: 'Search for a school district',
                 width: '100%'
             });
+            $(schoolSelect).select2({
+                placeholder: 'Select a school',
+                width: '100%'
+            });
+            $(menuSelect).select2({
+                placeholder: 'Select a menu',
+                width: '100%'
+            });
 
             if (loadPluginSettings) {
                 // Instances created before district selection was added were Bellevue (ID 99).
                 organizationSelect.value = String(pluginSettings.organizationId || '99');
+                $(organizationSelect).trigger('change.select2');
                 organizationName.value = pluginSettings.organizationName || selectedText(organizationSelect);
                 await loadSchools(pluginSettings.schoolId || '');
+                $(schoolSelect).trigger('change.select2');
                 schoolName.value = pluginSettings.schoolName || selectedText(schoolSelect);
                 await loadMenus(pluginSettings.menuId || '');
+                $(menuSelect).trigger('change.select2');
                 menuName.value = pluginSettings.menuName || selectedText(menuSelect);
             }
         } catch (error) {

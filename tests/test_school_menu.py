@@ -92,6 +92,50 @@ def test_get_day_menu_handles_missing_date(plugin):
     }
 
 
+def test_get_menu_for_display_uses_next_published_meal(plugin):
+    today = date(2026, 8, 21)
+    next_school_day = date(2026, 9, 2)
+    next_entry = make_entry(
+        next_school_day,
+        [
+            {"type": "category", "name": "Featured Entree(s)"},
+            {"type": "recipe", "name": "Cheese Pizza"},
+        ],
+    )
+
+    with patch.object(plugin, "_get_api_data", side_effect=[[], [next_entry]]):
+        result = plugin.get_menu_for_display(99, 123, today)
+
+    assert result == {
+        "sections": [
+            {"name": "Featured Entree(s)", "items": ["Cheese Pizza"]}
+        ],
+        "message": "",
+        "day": next_school_day,
+        "is_upcoming": True,
+    }
+
+
+def test_build_sections_hides_low_priority_sections(plugin):
+    sections = plugin._build_sections(
+        [
+            {"type": "category", "name": "Featured Entree(s)"},
+            {"type": "recipe", "name": "Cheese Pizza"},
+            {"type": "category", "name": "Milk"},
+            {"type": "recipe", "name": "1% Milk"},
+            {"type": "category", "name": "Misc."},
+            {"type": "recipe", "name": "Ketchup"},
+            {"type": "category", "name": "Fruit"},
+            {"type": "recipe", "name": "Apple Slices"},
+        ]
+    )
+
+    assert sections == [
+        {"name": "Featured Entree(s)", "items": ["Cheese Pizza"]},
+        {"name": "Fruit", "items": ["Apple Slices"]},
+    ]
+
+
 def test_get_menus_prefers_public_name(plugin):
     with patch.object(
         plugin,
