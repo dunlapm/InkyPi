@@ -199,7 +199,14 @@ class RefreshTask:
         else:
             raise ValueError(f"Unsupported button action: {action}")
 
-        self.manual_update(PlaylistRefresh(playlist, plugin_instance, force=True))
+        self.manual_update(
+            PlaylistRefresh(
+                playlist,
+                plugin_instance,
+                force=action == "refresh",
+                use_cached=action in ("previous", "next"),
+            )
+        )
 
     def _get_current_datetime(self):
         """Retrieves the current datetime based on the device's configured timezone."""
@@ -313,10 +320,17 @@ class PlaylistRefresh(RefreshAction):
         plugin_instance: The plugin instance to refresh.
     """
 
-    def __init__(self, playlist, plugin_instance, force=False):
+    def __init__(
+        self,
+        playlist,
+        plugin_instance,
+        force=False,
+        use_cached=False,
+    ):
         self.playlist = playlist
         self.plugin_instance = plugin_instance
         self.force = force
+        self.use_cached = use_cached
 
     def get_refresh_info(self):
         """Return refresh metadata as a dictionary."""
@@ -336,8 +350,15 @@ class PlaylistRefresh(RefreshAction):
         # Determine the file path for the plugin's image
         plugin_image_path = os.path.join(device_config.plugin_image_dir, self.plugin_instance.get_image_path())
 
+        if self.use_cached and os.path.exists(plugin_image_path):
+            logger.info(
+                "Using cached image for playlist navigation. | plugin_instance: '%s'",
+                self.plugin_instance.name,
+            )
+            with Image.open(plugin_image_path) as img:
+                image = img.copy()
         # Check if a refresh is needed based on the plugin instance's criteria
-        if self.plugin_instance.should_refresh(current_dt) or self.force:
+        elif self.plugin_instance.should_refresh(current_dt) or self.force:
             logger.info(f"Refreshing plugin instance. | plugin_instance: '{self.plugin_instance.name}'") 
             # Generate a new image
             image = plugin.generate_image(self.plugin_instance.settings, device_config)
