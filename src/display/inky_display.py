@@ -1,6 +1,9 @@
 import logging
+import time
+
 from inky.auto import auto
 from display.abstract_display import AbstractDisplay
+from display.inky_ac073tc1a_optimization import optimize_ac073tc1a_driver
 
 
 logger = logging.getLogger(__name__)
@@ -28,6 +31,10 @@ class InkyDisplay(AbstractDisplay):
         """
         
         self.inky_display = auto()
+        if optimize_ac073tc1a_driver(self.inky_display):
+            logger.info(
+                "Enabled optimized AC073TC1A SPI transfer and busy polling."
+            )
         self.inky_display.set_border(self.inky_display.BLACK)
 
         # store display resolution in device config
@@ -61,4 +68,9 @@ class InkyDisplay(AbstractDisplay):
         inky_saturation = self.device_config.get_config('image_settings').get("inky_saturation", 0.5)
         logger.info(f"Inky Saturation: {inky_saturation}")
         self.inky_display.set_image(image, saturation=inky_saturation)
+        refresh_started = time.monotonic()
         self.inky_display.show()
+        logger.info(
+            "Inky hardware refresh completed in %.2f seconds.",
+            time.monotonic() - refresh_started,
+        )
