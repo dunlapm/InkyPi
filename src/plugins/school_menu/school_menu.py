@@ -16,7 +16,7 @@ LEGACY_ORGANIZATION_ID = 99
 REQUEST_TIMEOUT = 30
 NEXT_MENU_LOOKAHEAD_MONTHS = 2
 HIDDEN_SECTION_NAMES = {"milk", "misc", "misc."}
-DISPLAY_SECTION_TERMS = ("featured", "entree", "entrée", "vegetable", "fruit")
+DISPLAY_SECTION_TERMS = ("featured", "entree", "entrée")
 
 
 class SchoolMenu(BasePlugin):

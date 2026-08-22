@@ -136,7 +136,7 @@ def test_build_sections_hides_low_priority_sections(plugin):
     ]
 
 
-def test_display_sections_prioritizes_changing_meal_sections(plugin):
+def test_display_sections_prioritizes_featured_entrees(plugin):
     sections = [
         {"name": "Featured Entree(s)", "items": ["Pasta"]},
         {"name": "Grill Line", "items": ["Burger"]},
@@ -147,8 +147,6 @@ def test_display_sections_prioritizes_changing_meal_sections(plugin):
 
     assert plugin._display_sections(sections) == [
         {"name": "Featured Entree(s)", "items": ["Pasta"]},
-        {"name": "Vegetables", "items": ["Carrots"]},
-        {"name": "Fruit", "items": ["Apple"]},
     ]
 
 

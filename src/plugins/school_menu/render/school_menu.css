@@ -66,24 +66,28 @@
     display: flex;
     flex: 1;
     flex-direction: column;
-    gap: 1.2dvh;
+    justify-content: center;
     min-height: 0;
     padding-top: 1.2dvh;
     overflow: hidden;
 }
 
 .menu-section {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     width: 100%;
     min-width: 0;
-    padding: 0.8dvh 1dvw 1dvh;
-    border: 0.25dvh solid currentColor;
+    min-height: 55%;
+    padding: 1.5dvh 1.5dvw 2dvh;
+    border: 0.35dvh solid currentColor;
 }
 
 .menu-section h2 {
-    margin: 0 0 0.5dvh;
-    font-size: min(4.2dvh, 4.2dvw);
+    margin: 0 0 1.2dvh;
+    font-size: min(5.2dvh, 5.2dvw);
     line-height: 1.05;
-    border-bottom: 1px solid currentColor;
+    border-bottom: 0.25dvh solid currentColor;
 }
 
 .menu-section ul {
@@ -92,9 +96,9 @@
 }
 
 .menu-section li {
-    margin-bottom: 0.35dvh;
-    font-size: min(3.4dvh, 3.4dvw);
-    line-height: 1.08;
+    margin-bottom: 1dvh;
+    font-size: min(4.8dvh, 4.8dvw);
+    line-height: 1.12;
 }
 
 .empty-message {
@@ -108,9 +112,11 @@
 }
 
 .school-menus.single .menu-sections {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    align-items: start;
+    display: flex;
+}
+
+.school-menus.single .menu-section li {
+    font-size: min(6dvh, 6dvw);
 }
 
 @media (max-aspect-ratio: 1) {
@@ -125,7 +131,6 @@
     }
 
     .menu-sections {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        display: flex;
     }
 }
