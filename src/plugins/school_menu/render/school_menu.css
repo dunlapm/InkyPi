@@ -66,19 +66,19 @@
     display: flex;
     flex: 1;
     flex-direction: column;
-    justify-content: center;
     min-height: 0;
     padding-top: 1.2dvh;
+    padding-bottom: 1.2dvh;
     overflow: hidden;
 }
 
 .menu-section {
     display: flex;
+    flex: 1;
     flex-direction: column;
     justify-content: center;
     width: 100%;
     min-width: 0;
-    min-height: 55%;
     padding: 1.5dvh 1.5dvw 2dvh;
     border: 0.35dvh solid currentColor;
 }
@@ -96,8 +96,8 @@
 }
 
 .menu-section li {
-    margin-bottom: 1dvh;
-    font-size: min(4.8dvh, 4.8dvw);
+    margin-bottom: 1.5dvh;
+    font-size: min(6dvh, 6dvw);
     line-height: 1.12;
 }
 
