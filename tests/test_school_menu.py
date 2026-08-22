@@ -74,12 +74,12 @@ def test_get_day_menu_falls_back_to_original_setting(plugin):
 
 def test_get_day_menu_handles_day_off(plugin):
     day = date(2026, 8, 10)
-    entry = make_entry(day, [], days_off=["Holiday"])
+    entry = make_entry(day, [], days_off={"description": "Labor Day"})
 
     with patch.object(plugin, "_get_api_data", return_value=[entry]):
         result = plugin.get_day_menu(99, 123, day)
 
-    assert result == {"sections": [], "message": "No school today."}
+    assert result == {"sections": [], "message": "Labor Day"}
 
 
 def test_get_day_menu_handles_missing_date(plugin):
@@ -158,3 +158,16 @@ def test_api_failure_has_user_friendly_error(plugin):
         get_session.return_value.get.return_value = response
         with pytest.raises(RuntimeError, match="Unable to retrieve"):
             plugin._get_api_data("/test")
+
+
+def test_unpublished_month_is_empty(plugin):
+    response = MagicMock(status_code=400)
+
+    with patch(
+        "src.plugins.school_menu.school_menu.get_http_session"
+    ) as get_session:
+        get_session.return_value.get.return_value = response
+        result = plugin._get_api_data("/test", empty_on_statuses=(400, 404))
+
+    assert result == []
+    response.raise_for_status.assert_not_called()

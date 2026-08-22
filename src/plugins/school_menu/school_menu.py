@@ -120,7 +120,8 @@ class SchoolMenu(BasePlugin):
     def get_day_menu(self, organization_id, menu_id, day):
         data = self._get_api_data(
             f"/organizations/{organization_id}/menus/{menu_id}"
-            f"/year/{day.year}/month/{day.month}/date_overwrites"
+            f"/year/{day.year}/month/{day.month}/date_overwrites",
+            empty_on_statuses=(400, 404),
         )
         entry = next((item for item in data if item.get("day") == day.isoformat()), None)
         if not entry:
@@ -128,7 +129,10 @@ class SchoolMenu(BasePlugin):
 
         current_setting = self._parse_setting(entry.get("setting"))
         if current_setting.get("days_off"):
-            return {"sections": [], "message": "No school today."}
+            return {
+                "sections": [],
+                "message": self._day_off_message(current_setting["days_off"]),
+            }
 
         display_items = current_setting.get("current_display") or []
         if not display_items:
@@ -140,11 +144,13 @@ class SchoolMenu(BasePlugin):
             return {"sections": [], "message": "No menu is published for today."}
         return {"sections": sections, "message": ""}
 
-    def _get_api_data(self, path):
+    def _get_api_data(self, path, empty_on_statuses=()):
         try:
             response = get_http_session().get(
                 f"{API_BASE_URL}{path}", timeout=REQUEST_TIMEOUT
             )
+            if response.status_code in empty_on_statuses:
+                return []
             response.raise_for_status()
             payload = response.json()
         except (requests.RequestException, ValueError) as e:
@@ -186,6 +192,17 @@ class SchoolMenu(BasePlugin):
         except (TypeError, json.JSONDecodeError):
             return {}
         return parsed if isinstance(parsed, dict) else {}
+
+    @staticmethod
+    def _day_off_message(days_off):
+        if isinstance(days_off, dict):
+            days_off = [days_off]
+        for day_off in days_off:
+            if isinstance(day_off, dict):
+                description = str(day_off.get("description", "")).strip()
+                if description:
+                    return description
+        return "No school today."
 
     @staticmethod
     def _build_sections(display_items):
