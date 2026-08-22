@@ -72,7 +72,7 @@
             const formData = new FormData(form);
             let url = '{{ url_for("plugin.update_now") }}';
             let method = 'POST';
-            let clearFormOnSubmit = false;
+            let resetScheduleOnSubmit = false;
 
             // Add uploaded files to the form under its key
             Object.keys(uploadedFiles).forEach(key => {
@@ -91,7 +91,7 @@
                     scheduleData[key] = value;
                 }
                 formData.append("refresh_settings", JSON.stringify(scheduleData));
-                clearFormOnSubmit = true
+                resetScheduleOnSubmit = true;
             } else if (action == "update_instance") {
                 url = "{{ url_for('plugin.update_plugin_instance', instance_name='') }}" + pluginInstanceName,
                 method = 'PUT'
@@ -104,25 +104,13 @@
                 // Handle the response
                 if (response.ok) {
                     showResponseModal('success', `Success! ${result.message}`);
+                    if (resetScheduleOnSubmit) {
+                        scheduleForm.reset();
+                    }
                 } else {
                     showResponseModal('failure', `Error!  ${result.error}`);
                 }
                 closeModal('scheduleModal');
-
-                if (clearFormOnSubmit) {
-                    form.reset()
-                    uploadedFiles = {};
-                    document.querySelectorAll('input[clear-on-submit]').forEach(input => {
-                        input.value = '';
-                        input.dispatchEvent(new Event('change'));
-                    });
-                    document.querySelectorAll('[delete-on-submit]').forEach(div => {
-                        div.remove();
-                    });
-                    if (action == "add_to_playlist"){
-                        scheduleForm.reset()
-                    }
-                }
             } catch (error) {
                 console.error('Error:', error);
                 alert('An error occurred while processing your request.');
