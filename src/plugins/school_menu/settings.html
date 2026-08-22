@@ -118,15 +118,15 @@
             }
         }
 
-        organizationSelect.addEventListener('change', async () => {
+        $(organizationSelect).on('change', async () => {
             organizationName.value = selectedText(organizationSelect);
             await loadSchools();
         });
-        schoolSelect.addEventListener('change', async () => {
+        $(schoolSelect).on('change', async () => {
             schoolName.value = selectedText(schoolSelect);
             await loadMenus();
         });
-        menuSelect.addEventListener('change', () => {
+        $(menuSelect).on('change', () => {
             menuName.value = selectedText(menuSelect);
         });
 
