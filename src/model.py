@@ -238,6 +238,14 @@ class Playlist:
             self.current_plugin_index = 0
         return self.plugins[self.current_plugin_index]
 
+    def set_current_plugin(self, plugin_id, name):
+        """Align the playlist position with a known displayed plugin."""
+        for index, plugin in enumerate(self.plugins):
+            if plugin.plugin_id == plugin_id and plugin.name == name:
+                self.current_plugin_index = index
+                return True
+        return False
+
     def get_relative_plugin(self, offset):
         """Moves by offset in the playlist and returns the selected plugin."""
         if not self.plugins:

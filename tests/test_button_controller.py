@@ -60,3 +60,29 @@ def test_previous_selects_last_plugin_when_nothing_selected():
     )
 
     assert playlist.get_previous_plugin().name == "Clock"
+
+
+def test_relative_navigation_aligns_with_displayed_plugin():
+    playlist = Playlist(
+        "Default",
+        "00:00",
+        "24:00",
+        [
+            {
+                "plugin_id": "weather",
+                "name": "Weather",
+                "plugin_settings": {},
+                "refresh": {"interval": 3600},
+            },
+            {
+                "plugin_id": "school_menu",
+                "name": "Lunch",
+                "plugin_settings": {},
+                "refresh": {"scheduled": "07:00"},
+            },
+        ],
+        current_plugin_index=1,
+    )
+
+    assert playlist.set_current_plugin("weather", "Weather") is True
+    assert playlist.get_previous_plugin().name == "Lunch"

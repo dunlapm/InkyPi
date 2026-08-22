@@ -190,6 +190,13 @@ class RefreshTask:
             logger.warning("Button action ignored because no playlist is active.")
             return
 
+        latest_refresh = self.device_config.get_refresh_info()
+        if latest_refresh.playlist == playlist.name:
+            playlist.set_current_plugin(
+                latest_refresh.plugin_id,
+                latest_refresh.plugin_instance,
+            )
+
         if action == "previous":
             plugin_instance = playlist.get_previous_plugin()
         elif action == "next":
