@@ -76,7 +76,7 @@
     display: flex;
     flex: 1;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
     width: 100%;
     min-width: 0;
     padding: 1.5dvh 1.5dvw 2dvh;
@@ -87,6 +87,7 @@
     margin: 0 0 1.2dvh;
     font-size: min(5.2dvh, 5.2dvw);
     line-height: 1.05;
+    text-align: center;
     border-bottom: 0.25dvh solid currentColor;
 }
 
