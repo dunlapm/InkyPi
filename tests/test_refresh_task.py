@@ -47,3 +47,22 @@ def test_playlist_navigation_uses_cached_image(tmp_path):
     assert image.getpixel((0, 0)) == (255, 0, 0)
     plugin.generate_image.assert_not_called()
     plugin_instance.should_refresh.assert_not_called()
+
+
+def test_boundary_check_is_not_suppressed_by_recent_manual_refresh():
+    device_config = MagicMock()
+    refresh_task = RefreshTask(device_config, MagicMock())
+    playlist = MagicMock()
+    playlist.name = "Default"
+    playlist.plugins = [MagicMock()]
+    playlist.get_next_plugin.return_value = playlist.plugins[0]
+    playlist_manager = MagicMock()
+    playlist_manager.determine_active_playlist.return_value = playlist
+
+    selected_playlist, selected_plugin = refresh_task._determine_next_plugin(
+        playlist_manager,
+        datetime(2026, 9, 3, 7, 0),
+    )
+
+    assert selected_playlist is playlist
+    assert selected_plugin is playlist.plugins[0]

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from plugins.plugin_registry import get_plugin_instance
 from utils.image_utils import compute_image_hash
 from utils.system_status import generate_system_status_image
-from model import RefreshInfo, PlaylistManager
+from model import RefreshInfo
 from PIL import Image
 
 logger = logging.getLogger(__name__)
@@ -81,13 +81,19 @@ class RefreshTask:
 
                     # Align checks to wall-clock boundaries so rendering time does not
                     # accumulate into the refresh schedule.
-                    self.condition.wait(timeout=wait_time)
+                    notified = self.condition.wait(timeout=wait_time)
                     self.refresh_result = {}
                     self.refresh_event.clear()
 
                     # Exit if `stop()` is called
                     if not self.running:
                         break
+
+                    # Configuration changes wake the worker so it can recalculate
+                    # its next boundary; they should not trigger an early refresh.
+                    if notified and not self.manual_update_request:
+                        self.refresh_event.set()
+                        continue
 
                     playlist_manager = self.device_config.get_playlist_manager()
                     latest_refresh = self.device_config.get_refresh_info()
@@ -106,7 +112,10 @@ class RefreshTask:
 
                         # handle refresh based on playlists
                         logger.info(f"Running interval refresh check. | current_time: {current_dt.strftime('%Y-%m-%d %H:%M:%S')}")
-                        playlist, plugin_instance = self._determine_next_plugin(playlist_manager, latest_refresh, current_dt)
+                        playlist, plugin_instance = self._determine_next_plugin(
+                            playlist_manager,
+                            current_dt,
+                        )
                         if plugin_instance:
                             refresh_action = PlaylistRefresh(playlist, plugin_instance)
 
@@ -232,8 +241,8 @@ class RefreshTask:
         )
         return interval_seconds - (seconds_since_midnight % interval_seconds)
 
-    def _determine_next_plugin(self, playlist_manager, latest_refresh_info, current_dt):
-        """Determines the next plugin to refresh based on the active playlist, plugin cycle interval, and current time."""
+    def _determine_next_plugin(self, playlist_manager, current_dt):
+        """Return the next plugin at an expired wall-clock boundary."""
         playlist = playlist_manager.determine_active_playlist(current_dt)
         if not playlist:
             playlist_manager.active_playlist = None
@@ -243,15 +252,6 @@ class RefreshTask:
         playlist_manager.active_playlist = playlist.name
         if not playlist.plugins:
             logger.info(f"Active playlist '{playlist.name}' has no plugins.")
-            return None, None
-
-        latest_refresh_dt = latest_refresh_info.get_refresh_datetime()
-        plugin_cycle_interval = self.device_config.get_config("plugin_cycle_interval_seconds", default=3600)
-        should_refresh = PlaylistManager.should_refresh(latest_refresh_dt, plugin_cycle_interval, current_dt)
-
-        if not should_refresh:
-            latest_refresh_str = latest_refresh_dt.strftime('%Y-%m-%d %H:%M:%S') if latest_refresh_dt else "None"
-            logger.info(f"Not time to update display. | latest_update: {latest_refresh_str} | plugin_cycle_interval: {plugin_cycle_interval}")
             return None, None
 
         plugin = playlist.get_next_plugin()
