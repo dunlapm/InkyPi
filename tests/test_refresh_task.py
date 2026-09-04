@@ -34,8 +34,10 @@ def test_playlist_navigation_uses_cached_image(tmp_path):
     plugin_instance.plugin_id = "weather"
     plugin_instance.name = "weather"
     plugin_instance.get_image_path.return_value = "weather_weather.png"
+    plugin_instance.should_refresh.return_value = False
     device_config = MagicMock(plugin_image_dir=str(tmp_path))
     plugin = MagicMock()
+    plugin.needs_refresh.return_value = False
     refresh = PlaylistRefresh(
         MagicMock(name="Default"),
         plugin_instance,
@@ -46,7 +48,43 @@ def test_playlist_navigation_uses_cached_image(tmp_path):
 
     assert image.getpixel((0, 0)) == (255, 0, 0)
     plugin.generate_image.assert_not_called()
-    plugin_instance.should_refresh.assert_not_called()
+    plugin_instance.should_refresh.assert_called_once()
+
+
+def test_playlist_navigation_regenerates_expired_plugin_cache(tmp_path):
+    cached_image = Image.new("RGB", (2, 2), "red")
+    cached_image.save(tmp_path / "school_menu_Lunch.png")
+    new_image = Image.new("RGB", (2, 2), "blue")
+    plugin_instance = MagicMock()
+    plugin_instance.plugin_id = "school_menu"
+    plugin_instance.name = "Lunch"
+    plugin_instance.settings = {"menuCutoffTime": "14:00"}
+    plugin_instance.get_image_path.return_value = "school_menu_Lunch.png"
+    plugin_instance.get_latest_refresh_dt.return_value = datetime(
+        2026,
+        9,
+        3,
+        7,
+    )
+    plugin_instance.should_refresh.return_value = False
+    device_config = MagicMock(plugin_image_dir=str(tmp_path))
+    plugin = MagicMock()
+    plugin.needs_refresh.return_value = True
+    plugin.generate_image.return_value = new_image
+    refresh = PlaylistRefresh(
+        MagicMock(name="Default"),
+        plugin_instance,
+        use_cached=True,
+    )
+
+    image = refresh.execute(
+        plugin,
+        device_config,
+        datetime(2026, 9, 3, 17),
+    )
+
+    assert image.getpixel((0, 0)) == (0, 0, 255)
+    plugin.generate_image.assert_called_once()
 
 
 def test_boundary_check_is_not_suppressed_by_recent_manual_refresh():

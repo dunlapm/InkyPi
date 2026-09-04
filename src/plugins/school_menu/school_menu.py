@@ -42,6 +42,22 @@ class SchoolMenu(BasePlugin):
             return self.get_menus(organization_id, school_id)
         raise ValueError(f"Unsupported settings resource: {resource}")
 
+    def needs_refresh(self, settings, latest_refresh, current_time):
+        if latest_refresh is None:
+            return True
+
+        cutoff = self._parse_cutoff(
+            settings.get("menuCutoffTime", DEFAULT_MENU_CUTOFF_TIME)
+        )
+        latest_local = latest_refresh.astimezone(current_time.tzinfo)
+        if latest_local.date() < current_time.date():
+            return True
+        return (
+            latest_local.date() == current_time.date()
+            and latest_local.time().replace(tzinfo=None) < cutoff
+            <= current_time.time().replace(tzinfo=None)
+        )
+
     def generate_image(self, settings, device_config):
         organization_id = self._required_id(
             settings.get("organizationId", LEGACY_ORGANIZATION_ID),
@@ -255,11 +271,15 @@ class SchoolMenu(BasePlugin):
 
     @staticmethod
     def _is_before_cutoff(local_now, cutoff_value):
+        cutoff = SchoolMenu._parse_cutoff(cutoff_value)
+        return local_now.time().replace(tzinfo=None) < cutoff
+
+    @staticmethod
+    def _parse_cutoff(cutoff_value):
         try:
-            cutoff = datetime.strptime(cutoff_value, "%H:%M").time()
+            return datetime.strptime(cutoff_value, "%H:%M").time()
         except (TypeError, ValueError) as e:
             raise RuntimeError("Menu cutoff time must be a valid time.") from e
-        return local_now.time().replace(tzinfo=None) < cutoff
 
     def _menu_from_entry(self, entry):
         current_setting = self._parse_setting(entry.get("setting"))

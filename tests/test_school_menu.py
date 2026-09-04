@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import pytz
 import requests
 
 from src.plugins.school_menu.school_menu import SchoolMenu
@@ -169,6 +170,30 @@ def test_menu_cutoff_switches_at_configured_local_time(
 def test_menu_cutoff_rejects_invalid_time(plugin):
     with pytest.raises(RuntimeError, match="valid time"):
         plugin._is_before_cutoff(datetime(2026, 9, 2, 8, 0), "lunchtime")
+
+
+def test_menu_cache_expires_when_cutoff_is_crossed(plugin):
+    timezone = pytz.timezone("America/Los_Angeles")
+    latest_refresh = timezone.localize(datetime(2026, 9, 3, 7, 0))
+    current_time = timezone.localize(datetime(2026, 9, 3, 14, 0))
+
+    assert plugin.needs_refresh(
+        {"menuCutoffTime": "14:00"},
+        latest_refresh,
+        current_time,
+    ) is True
+
+
+def test_menu_cache_remains_valid_before_cutoff(plugin):
+    timezone = pytz.timezone("America/Los_Angeles")
+    latest_refresh = timezone.localize(datetime(2026, 9, 3, 7, 0))
+    current_time = timezone.localize(datetime(2026, 9, 3, 13, 59))
+
+    assert plugin.needs_refresh(
+        {"menuCutoffTime": "14:00"},
+        latest_refresh,
+        current_time,
+    ) is False
 
 
 def test_settings_use_native_searchable_datalists():

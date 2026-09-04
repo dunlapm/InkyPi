@@ -54,6 +54,10 @@ class BasePlugin:
     def generate_image(self, settings, device_config):
         raise NotImplementedError("generate_image must be implemented by subclasses")
 
+    def needs_refresh(self, settings, latest_refresh, current_time):
+        """Return whether plugin-specific state invalidates its cached image."""
+        return False
+
     def cleanup(self, settings):
         """Optional cleanup method that plugins can override to delete associated resources.
 

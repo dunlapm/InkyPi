@@ -356,8 +356,20 @@ class PlaylistRefresh(RefreshAction):
         """Performs a refresh for the specified plugin instance within its playlist context."""
         # Determine the file path for the plugin's image
         plugin_image_path = os.path.join(device_config.plugin_image_dir, self.plugin_instance.get_image_path())
+        latest_refresh = self.plugin_instance.get_latest_refresh_dt()
+        plugin_needs_refresh = plugin.needs_refresh(
+            self.plugin_instance.settings,
+            latest_refresh,
+            current_dt,
+        )
+        scheduled_refresh_due = self.plugin_instance.should_refresh(current_dt)
 
-        if self.use_cached and os.path.exists(plugin_image_path):
+        if (
+            self.use_cached
+            and os.path.exists(plugin_image_path)
+            and not scheduled_refresh_due
+            and not plugin_needs_refresh
+        ):
             logger.info(
                 "Using cached image for playlist navigation. | plugin_instance: '%s'",
                 self.plugin_instance.name,
@@ -365,7 +377,7 @@ class PlaylistRefresh(RefreshAction):
             with Image.open(plugin_image_path) as img:
                 image = img.copy()
         # Check if a refresh is needed based on the plugin instance's criteria
-        elif self.plugin_instance.should_refresh(current_dt) or self.force:
+        elif scheduled_refresh_due or plugin_needs_refresh or self.force:
             logger.info(f"Refreshing plugin instance. | plugin_instance: '{self.plugin_instance.name}'") 
             # Generate a new image
             image = plugin.generate_image(self.plugin_instance.settings, device_config)
