@@ -1,8 +1,9 @@
+import socket
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 from src.refresh_task import SystemStatusRefresh
-from src.utils.system_status import generate_system_status_image
+from src.utils.system_status import _connection_status, generate_system_status_image
 
 
 def test_generate_system_status_image():
@@ -14,6 +15,9 @@ def test_generate_system_status_image():
         patch("src.utils.system_status.get_ip_address", return_value="192.168.1.103"),
         patch("src.utils.system_status.get_wifi_name", return_value="Home Wi-Fi"),
         patch("src.utils.system_status._ntp_status", return_value="Yes"),
+        patch("src.utils.system_status._gateway_status", return_value="OK"),
+        patch("src.utils.system_status._connection_status", return_value="OK"),
+        patch("src.utils.system_status._oldest_cache_age", return_value="2h ago"),
         patch("src.utils.system_status._format_uptime", return_value="2d 3h"),
         patch("src.utils.system_status._cpu_temperature", return_value="42 C"),
         patch("src.utils.system_status.psutil.disk_usage") as disk_usage,
@@ -25,6 +29,14 @@ def test_generate_system_status_image():
 
     assert image.size == (800, 480)
     assert image.mode == "RGB"
+
+
+def test_connection_status_distinguishes_dns_failure():
+    with patch(
+        "src.utils.system_status.socket.create_connection",
+        side_effect=socket.gaierror(),
+    ):
+        assert _connection_status("example.invalid", 443) == "DNS failed"
 
 
 def test_system_status_is_transient_and_does_not_require_plugin():

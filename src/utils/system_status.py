@@ -2,6 +2,7 @@ import os
 import socket
 import subprocess
 import time
+from pathlib import Path
 
 import psutil
 from PIL import Image, ImageDraw
@@ -18,8 +19,8 @@ def generate_system_status_image(device_config, current_dt):
     image = Image.new("RGB", dimensions, "white")
     draw = ImageDraw.Draw(image)
     title_font = get_font("Jost", int(min(width, height) * 0.11), "bold")
-    label_font = get_font("Jost", int(min(width, height) * 0.048), "bold")
-    value_font = get_font("Jost", int(min(width, height) * 0.048))
+    label_font = get_font("Jost", int(min(width, height) * 0.04), "bold")
+    value_font = get_font("Jost", int(min(width, height) * 0.04))
 
     draw.text((width * 0.05, height * 0.07), "InkyPi Status", fill="black", font=title_font)
     draw.line(
@@ -30,8 +31,12 @@ def generate_system_status_image(device_config, current_dt):
 
     values = [
         ("Host", socket.gethostname()),
-        ("IP address", _safe_value(get_ip_address)),
-        ("Wi-Fi", _safe_value(get_wifi_name) or "Not connected"),
+        ("Wi-Fi association", _safe_value(get_wifi_name) or "Disconnected"),
+        ("Assigned IP", _safe_value(get_ip_address) or "Unavailable"),
+        ("Gateway", _gateway_status()),
+        ("DNS lookup", _connection_status("menus.healthepro.com", 443)),
+        ("Internet", _connection_status("1.1.1.1", 443)),
+        ("Oldest data", _oldest_cache_age(device_config)),
         ("Time", current_dt.strftime("%A %I:%M %p").lstrip("0")),
         ("NTP synced", _ntp_status()),
         ("Uptime", _format_uptime()),
@@ -42,15 +47,15 @@ def generate_system_status_image(device_config, current_dt):
     columns = 2
     rows = (len(values) + columns - 1) // columns
     cell_width = width * 0.45
-    row_height = height * 0.17
+    row_height = height * 0.115
     for index, (label, value) in enumerate(values):
         column = index // rows
         row = index % rows
         x = width * 0.05 + column * cell_width
-        y = height * 0.27 + row * row_height
+        y = height * 0.25 + row * row_height
         draw.text((x, y), label, fill="black", font=label_font)
         draw.text(
-            (x, y + height * 0.065),
+            (x, y + height * 0.052),
             str(value),
             fill="black",
             font=value_font,
@@ -94,3 +99,63 @@ def _cpu_temperature():
         if readings:
             return f"{readings[0].current:.0f} C"
     return "Unavailable"
+
+
+def _gateway_status():
+    gateway = _default_gateway()
+    if not gateway:
+        return "Unavailable"
+    try:
+        result = subprocess.run(
+            ["ping", "-c", "1", "-W", "1", gateway],
+            capture_output=True,
+            timeout=2,
+            check=False,
+        )
+        return f"OK ({gateway})" if result.returncode == 0 else "Unreachable"
+    except (OSError, subprocess.SubprocessError):
+        return "Unknown"
+
+
+def _default_gateway():
+    try:
+        with open("/proc/net/route", encoding="ascii") as routes:
+            for route in routes:
+                fields = route.split()
+                if len(fields) > 2 and fields[1] == "00000000":
+                    raw = bytes.fromhex(fields[2])
+                    return socket.inet_ntoa(raw[::-1])
+    except (OSError, ValueError):
+        return None
+    return None
+
+
+def _connection_status(host, port):
+    try:
+        with socket.create_connection((host, port), timeout=2):
+            return "OK"
+    except socket.gaierror:
+        return "DNS failed"
+    except OSError:
+        return "Unreachable"
+
+
+def _oldest_cache_age(device_config):
+    image_dir = Path(device_config.plugin_image_dir)
+    cache_times = [
+        image.stat().st_mtime
+        for image in image_dir.glob("*.png")
+        if image.is_file()
+    ]
+    if not cache_times:
+        return "No cached data"
+
+    seconds = max(0, int(time.time() - min(cache_times)))
+    days, remainder = divmod(seconds, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes = remainder // 60
+    if days:
+        return f"{days}d {hours}h ago"
+    if hours:
+        return f"{hours}h {minutes}m ago"
+    return f"{minutes}m ago"
