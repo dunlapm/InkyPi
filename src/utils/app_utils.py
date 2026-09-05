@@ -57,9 +57,24 @@ def get_ip_address():
 
 def get_wifi_name():
     try:
-        output = subprocess.check_output(['iwgetid', '-r']).decode('utf-8').strip()
-        return output
-    except subprocess.CalledProcessError:
+        result = subprocess.run(
+            ["nmcli", "-t", "-f", "IN-USE,SSID", "device", "wifi", "list",
+             "--rescan", "no"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=True,
+        )
+        active = next(
+            (
+                line.split(":", 1)[1].replace(r"\:", ":")
+                for line in result.stdout.splitlines()
+                if line.startswith("*:")
+            ),
+            "",
+        )
+        return active or None
+    except (OSError, subprocess.SubprocessError):
         return None
 
 def is_connected():
