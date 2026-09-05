@@ -22,6 +22,7 @@ VENV_PATH="$INSTALL_PATH/venv_$APPNAME"
 SERVICE_FILE="$APPNAME.service"
 SERVICE_FILE_SOURCE="$SCRIPT_DIR/$SERVICE_FILE"
 SERVICE_FILE_TARGET="/etc/systemd/system/$SERVICE_FILE"
+WATCHDOG_NAME="$APPNAME-network-watchdog"
 
 APT_REQUIREMENTS_FILE="$SCRIPT_DIR/debian-requirements.txt"
 PIP_REQUIREMENTS_FILE="$SCRIPT_DIR/requirements.txt"
@@ -58,6 +59,16 @@ update_app_service() {
     echo_error "ERROR: Service file $SERVICE_FILE_SOURCE not found!"
     exit 1
   fi
+}
+
+update_network_watchdog() {
+  echo "Updating $APPNAME network watchdog."
+  cp "$SCRIPT_DIR/$WATCHDOG_NAME" "$BINPATH/$WATCHDOG_NAME"
+  chmod +x "$BINPATH/$WATCHDOG_NAME"
+  cp "$SCRIPT_DIR/$WATCHDOG_NAME.service" "/etc/systemd/system/$WATCHDOG_NAME.service"
+  cp "$SCRIPT_DIR/$WATCHDOG_NAME.timer" "/etc/systemd/system/$WATCHDOG_NAME.timer"
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now "$WATCHDOG_NAME.timer"
 }
 
 update_cli() {
@@ -125,6 +136,7 @@ echo "Update JS and CSS files"
 bash $SCRIPT_DIR/update_vendors.sh > /dev/null
 
 update_app_service
+update_network_watchdog
 update_cli
 
 echo_success "Update completed."

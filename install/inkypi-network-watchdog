@@ -1,0 +1,72 @@
+#!/bin/bash
+
+set -u
+
+PROFILE="${INKYPI_WIFI_PROFILE:-preconfigured}"
+STATE_FILE="/run/inkypi-network-watchdog.failures"
+MAX_FAILURES=3
+
+log() {
+  logger -t inkypi-network-watchdog "$1"
+}
+
+failure_count() {
+  if [[ -f "$STATE_FILE" ]]; then
+    cat "$STATE_FILE"
+  else
+    echo 0
+  fi
+}
+
+record_failure() {
+  local failures
+  failures=$(( $(failure_count) + 1 ))
+  echo "$failures" > "$STATE_FILE"
+  echo "$failures"
+}
+
+gateway_is_reachable() {
+  local gateway
+  gateway=$(ip route show default dev wlan0 | awk 'NR == 1 {print $3}')
+  [[ -n "$gateway" ]] && ping -I wlan0 -c 1 -W 2 "$gateway" >/dev/null 2>&1
+}
+
+reset_failures() {
+  rm -f "$STATE_FILE"
+}
+
+if gateway_is_reachable; then
+  reset_failures
+  exit 0
+fi
+
+failures=$(record_failure)
+log "Gateway unreachable on wlan0 (failure ${failures}/${MAX_FAILURES}); reconnecting ${PROFILE}."
+nmcli device disconnect wlan0 >/dev/null 2>&1 || true
+sleep 2
+nmcli connection up "$PROFILE" ifname wlan0 >/dev/null 2>&1 || true
+sleep 15
+
+if gateway_is_reachable; then
+  log "Wi-Fi connectivity restored after reconnecting ${PROFILE}."
+  reset_failures
+  exit 0
+fi
+
+if (( failures >= 2 )); then
+  log "Wi-Fi reconnect failed; restarting NetworkManager."
+  systemctl restart NetworkManager
+  sleep 20
+  if gateway_is_reachable; then
+    log "Wi-Fi connectivity restored after restarting NetworkManager."
+    reset_failures
+    exit 0
+  fi
+fi
+
+if (( failures >= MAX_FAILURES )); then
+  log "Wi-Fi recovery failed ${failures} times; rebooting the Pi."
+  systemctl reboot
+fi
+
+exit 0

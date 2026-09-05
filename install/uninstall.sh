@@ -11,6 +11,7 @@ INSTALL_PATH="/usr/local/$APPNAME"
 BINPATH="/usr/local/bin"
 VENV_PATH="$INSTALL_PATH/venv_$APPNAME"
 SERVICE_FILE="/etc/systemd/system/$APPNAME.service"
+WATCHDOG_NAME="$APPNAME-network-watchdog"
 CONFIG_DIR="$INSTALL_PATH/src/config"
 
 echo_success() {
@@ -58,6 +59,15 @@ disable_service() {
   else
     echo_success "\tService file does not exist. Nothing to remove."
   fi
+}
+
+disable_network_watchdog() {
+  /usr/bin/systemctl disable --now "$WATCHDOG_NAME.timer" 2>/dev/null || true
+  rm -f \
+    "/etc/systemd/system/$WATCHDOG_NAME.service" \
+    "/etc/systemd/system/$WATCHDOG_NAME.timer" \
+    "$BINPATH/$WATCHDOG_NAME"
+  /usr/bin/systemctl daemon-reload
 }
 
 remove_files() {
@@ -108,6 +118,7 @@ check_permissions
 confirm_uninstall
 stop_service
 disable_service
+disable_network_watchdog
 remove_files
 
 echo_success "Uninstallation complete."

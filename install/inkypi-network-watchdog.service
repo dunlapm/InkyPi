@@ -1,0 +1,8 @@
+[Unit]
+Description=InkyPi network connectivity watchdog
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/inkypi-network-watchdog
