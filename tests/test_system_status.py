@@ -3,7 +3,11 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 from src.refresh_task import SystemStatusRefresh
-from src.utils.system_status import _connection_status, generate_system_status_image
+from src.utils.system_status import (
+    _connection_status,
+    _state_age,
+    generate_system_status_image,
+)
 
 
 def test_generate_system_status_image():
@@ -17,6 +21,7 @@ def test_generate_system_status_image():
         patch("src.utils.system_status._ntp_status", return_value="Yes"),
         patch("src.utils.system_status._gateway_status", return_value="OK"),
         patch("src.utils.system_status._connection_status", return_value="OK"),
+        patch("src.utils.system_status._state_age", return_value="Never"),
         patch("src.utils.system_status._oldest_cache_age", return_value="2h ago"),
         patch("src.utils.system_status._format_uptime", return_value="2d 3h"),
         patch("src.utils.system_status._cpu_temperature", return_value="42 C"),
@@ -37,6 +42,21 @@ def test_connection_status_distinguishes_dns_failure():
         side_effect=socket.gaierror(),
     ):
         assert _connection_status("example.invalid", 443) == "DNS failed"
+
+
+def test_state_age_reports_elapsed_time(tmp_path):
+    (tmp_path / "outage-start").write_text("100", encoding="ascii")
+
+    with (
+        patch("src.utils.system_status.WATCHDOG_STATE_DIR", tmp_path),
+        patch("src.utils.system_status.time.time", return_value=3820),
+    ):
+        assert _state_age("outage-start", "None") == "1h 2m ago"
+        assert _state_age(
+            "outage-start",
+            "None",
+            include_ago=False,
+        ) == "1h 2m"
 
 
 def test_system_status_is_transient_and_does_not_require_plugin():

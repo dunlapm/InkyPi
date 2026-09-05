@@ -3,16 +3,18 @@
 set -u
 
 PROFILE="${INKYPI_WIFI_PROFILE:-preconfigured}"
-STATE_FILE="/run/inkypi-network-watchdog.failures"
-MAX_FAILURES=3
+STATE_DIR="/var/lib/inkypi-network-watchdog"
+FAILURE_FILE="$STATE_DIR/failures"
+OUTAGE_FILE="$STATE_DIR/outage-start"
+RESTART_FILE="$STATE_DIR/last-network-restart"
 
 log() {
   logger -t inkypi-network-watchdog "$1"
 }
 
 failure_count() {
-  if [[ -f "$STATE_FILE" ]]; then
-    cat "$STATE_FILE"
+  if [[ -f "$FAILURE_FILE" ]]; then
+    cat "$FAILURE_FILE"
   else
     echo 0
   fi
@@ -21,7 +23,10 @@ failure_count() {
 record_failure() {
   local failures
   failures=$(( $(failure_count) + 1 ))
-  echo "$failures" > "$STATE_FILE"
+  echo "$failures" > "$FAILURE_FILE"
+  if [[ ! -f "$OUTAGE_FILE" ]]; then
+    date +%s > "$OUTAGE_FILE"
+  fi
   echo "$failures"
 }
 
@@ -32,7 +37,11 @@ gateway_is_reachable() {
 }
 
 reset_failures() {
-  rm -f "$STATE_FILE"
+  rm -f "$FAILURE_FILE" "$OUTAGE_FILE"
+}
+
+record_network_restart() {
+  date +%s > "$RESTART_FILE"
 }
 
 if gateway_is_reachable; then
@@ -41,7 +50,8 @@ if gateway_is_reachable; then
 fi
 
 failures=$(record_failure)
-log "Gateway unreachable on wlan0 (failure ${failures}/${MAX_FAILURES}); reconnecting ${PROFILE}."
+log "Gateway unreachable on wlan0 (consecutive failure ${failures}); reconnecting ${PROFILE}."
+record_network_restart
 nmcli device disconnect wlan0 >/dev/null 2>&1 || true
 sleep 2
 nmcli connection up "$PROFILE" ifname wlan0 >/dev/null 2>&1 || true
@@ -55,6 +65,7 @@ fi
 
 if (( failures >= 2 )); then
   log "Wi-Fi reconnect failed; restarting NetworkManager."
+  record_network_restart
   systemctl restart NetworkManager
   sleep 20
   if gateway_is_reachable; then
@@ -62,11 +73,6 @@ if (( failures >= 2 )); then
     reset_failures
     exit 0
   fi
-fi
-
-if (( failures >= MAX_FAILURES )); then
-  log "Wi-Fi recovery failed ${failures} times; rebooting the Pi."
-  systemctl reboot
 fi
 
 exit 0

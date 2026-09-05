@@ -10,6 +10,9 @@ from PIL import Image, ImageDraw
 from utils.app_utils import get_font, get_ip_address, get_wifi_name
 
 
+WATCHDOG_STATE_DIR = Path("/var/lib/inkypi-network-watchdog")
+
+
 def generate_system_status_image(device_config, current_dt):
     dimensions = device_config.get_resolution()
     if device_config.get_config("orientation") == "vertical":
@@ -36,6 +39,8 @@ def generate_system_status_image(device_config, current_dt):
         ("Gateway", _gateway_status()),
         ("DNS lookup", _connection_status("menus.healthepro.com", 443)),
         ("Internet", _connection_status("1.1.1.1", 443)),
+        ("Network restart", _state_age("last-network-restart", "Never")),
+        ("Current outage", _state_age("outage-start", "None", include_ago=False)),
         ("Oldest data", _oldest_cache_age(device_config)),
         ("Time", current_dt.strftime("%A %I:%M %p").lstrip("0")),
         ("NTP synced", _ntp_status()),
@@ -47,7 +52,7 @@ def generate_system_status_image(device_config, current_dt):
     columns = 2
     rows = (len(values) + columns - 1) // columns
     cell_width = width * 0.45
-    row_height = height * 0.115
+    row_height = height * 0.1
     for index, (label, value) in enumerate(values):
         column = index // rows
         row = index % rows
@@ -159,3 +164,24 @@ def _oldest_cache_age(device_config):
     if hours:
         return f"{hours}h {minutes}m ago"
     return f"{minutes}m ago"
+
+
+def _state_age(filename, missing_value, include_ago=True):
+    state_file = WATCHDOG_STATE_DIR / filename
+    try:
+        timestamp = int(state_file.read_text(encoding="ascii").strip())
+    except (OSError, ValueError):
+        return missing_value
+    duration = _format_duration(max(0, int(time.time()) - timestamp))
+    return f"{duration} ago" if include_ago else duration
+
+
+def _format_duration(seconds):
+    days, remainder = divmod(seconds, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes = remainder // 60
+    if days:
+        return f"{days}d {hours}h"
+    if hours:
+        return f"{hours}h {minutes}m"
+    return f"{minutes}m"

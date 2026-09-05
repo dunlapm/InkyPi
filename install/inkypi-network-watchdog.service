@@ -5,4 +5,5 @@ Wants=NetworkManager.service
 
 [Service]
 Type=oneshot
+StateDirectory=inkypi-network-watchdog
 ExecStart=/usr/local/bin/inkypi-network-watchdog
